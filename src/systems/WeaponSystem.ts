@@ -905,136 +905,134 @@ export class WeaponSystem extends System {
     return baseAngle + spreadAngle;
   }
 
-  // 얼음 공격 (주변 랜덤 위치에 1개씩 생성, 적 얼림이 핵심)
+  // 얼음 공격 (주변 랜덤 위치에 projectileCount개 생성, 적 얼림이 핵심)
   private createIceBolt(owner: Entity, transform: TransformComponent, weaponSlot: WeaponSlot): void {
     if (!this.scene) return;
 
-    // 플레이어 주변 랜덤 위치에 1개 생성 (너무 멀지 않게 50~120 거리)
-    const minRadius = 50;
-    const maxRadius = 120;
-    const radius = minRadius + Math.random() * (maxRadius - minRadius);
-    const angle = Math.random() * Math.PI * 2;
-    const iceX = transform.x + Math.cos(angle) * radius;
-    const iceY = transform.y + Math.sin(angle) * radius;
+    // projectileCount만큼 생성
+    for (let i = 0; i < weaponSlot.stats.projectileCount; i++) {
+      // 플레이어 주변 랜덤 위치 (너무 멀지 않게 50~120 거리)
+      const minRadius = 50;
+      const maxRadius = 120;
+      const radius = minRadius + Math.random() * (maxRadius - minRadius);
+      const angle = Math.random() * Math.PI * 2;
+      const iceX = transform.x + Math.cos(angle) * radius;
+      const iceY = transform.y + Math.sin(angle) * radius;
 
-    const ice = this.world.createEntity();
-    ice.addTag('projectile');
-    ice.addTag('player_projectile');
-    ice.addTag('ice_projectile'); // 얼음 태그 추가
+      const ice = this.world.createEntity();
+      ice.addTag('projectile');
+      ice.addTag('player_projectile');
+      ice.addTag('ice_projectile'); // 얼음 태그 추가
 
-    ice.addComponent(new TransformComponent(iceX, iceY));
-    ice.addComponent(new VelocityComponent(0, 0, 0)); // 정지 상태
+      ice.addComponent(new TransformComponent(iceX, iceY));
+      ice.addComponent(new VelocityComponent(0, 0, 0)); // 정지 상태
 
-    ice.addComponent(
-      new ProjectileComponent(
-        Math.floor(weaponSlot.stats.damage),
-        0,
-        999, // 범위 내 모든 적 타격
-        weaponSlot.stats.duration,
-        owner.id
-      )
-    );
+      ice.addComponent(
+        new ProjectileComponent(
+          Math.floor(weaponSlot.stats.damage),
+          0,
+          999, // 범위 내 모든 적 타격
+          weaponSlot.stats.duration,
+          owner.id
+        )
+      );
 
-    // 얼리는 범위 증가 (70 → 80 기본 반지름)
-    ice.addComponent(
-      new ColliderComponent(
-        80 * weaponSlot.stats.area, // 충돌 범위 증가
-        ColliderLayer.PlayerProjectile,
-        ColliderLayer.Enemy
-      )
-    );
+      // 얼리는 범위 증가
+      ice.addComponent(
+        new ColliderComponent(
+          80 * weaponSlot.stats.area, // 충돌 범위 증가
+          ColliderLayer.PlayerProjectile,
+          ColliderLayer.Enemy
+        )
+      );
 
-    const sprite = new SpriteComponent('ice-effect', 120, 120, 0xffffff, 5);
-    ice.addComponent(sprite);
+      const sprite = new SpriteComponent('ice-effect', 120, 120, 0xffffff, 5);
+      ice.addComponent(sprite);
 
-    // 얼음 이펙트 스프라이트 생성
-    const iceSprite = this.scene.add.sprite(iceX, iceY, 'ice-effect');
-    iceSprite.setDepth(5);
-    iceSprite.setScale(1.4 * weaponSlot.stats.area); // area에 따라 스케일 조정
-    iceSprite.setAlpha(0);
-    sprite.setSprite(iceSprite);
+      // 얼음 이펙트 스프라이트 생성
+      const iceSprite = this.scene.add.sprite(iceX, iceY, 'ice-effect');
+      iceSprite.setDepth(5);
+      iceSprite.setScale(1.4 * weaponSlot.stats.area); // area에 따라 스케일 조정
+      iceSprite.setAlpha(0);
+      sprite.setSprite(iceSprite);
 
-    // 갑자기 나타나는 효과
-    this.scene.tweens.add({
-      targets: iceSprite,
-      alpha: 1,
-      scaleX: 1.6 * weaponSlot.stats.area,
-      scaleY: 1.6 * weaponSlot.stats.area,
-      duration: 100,
-      ease: 'Back.easeOut',
-      onComplete: () => {
-        iceSprite.play('ice-attack'); // 10프레임 애니메이션 재생
+      // 갑자기 나타나는 효과
+      this.scene.tweens.add({
+        targets: iceSprite,
+        alpha: 1,
+        scaleX: 1.6 * weaponSlot.stats.area,
+        scaleY: 1.6 * weaponSlot.stats.area,
+        duration: 100,
+        ease: 'Back.easeOut',
+        onComplete: () => {
+          iceSprite.play('ice-attack'); // 10프레임 애니메이션 재생
 
-        // 애니메이션 종료 후 페이드아웃
-        iceSprite.once('animationcomplete', () => {
-          this.scene?.tweens.add({
-            targets: iceSprite,
-            alpha: 0,
-            duration: 200,
+          // 애니메이션 종료 후 페이드아웃
+          iceSprite.once('animationcomplete', () => {
+            this.scene?.tweens.add({
+              targets: iceSprite,
+              alpha: 0,
+              duration: 200,
+            });
           });
-        });
-      },
-    });
+        },
+      });
+    }
   }
 
   // 화염구 (관통 4회)
   private createFireball(owner: Entity, transform: TransformComponent, weaponSlot: WeaponSlot): void {
     const nearestEnemy = this.findNearestEnemy(transform);
 
-    const projectile = this.world.createEntity();
-    projectile.addTag('projectile');
-    projectile.addTag('player_projectile');
+    // projectileCount만큼 투사체 생성
+    for (let i = 0; i < weaponSlot.stats.projectileCount; i++) {
+      const projectile = this.world.createEntity();
+      projectile.addTag('projectile');
+      projectile.addTag('player_projectile');
 
-    let angle = 0;
-    if (nearestEnemy) {
-      const enemyTransform = nearestEnemy.getComponent(TransformComponent)!;
-      angle = Math.atan2(
-        enemyTransform.y - transform.y,
-        enemyTransform.x - transform.x
+      // 각도 계산 (여러 개일 경우 퍼져서 발사)
+      const angle = this.calculateProjectileAngle(transform, nearestEnemy, i, weaponSlot);
+      const dirX = Math.cos(angle);
+      const dirY = Math.sin(angle);
+
+      projectile.addComponent(new TransformComponent(transform.x, transform.y));
+      projectile.addComponent(
+        new VelocityComponent(
+          dirX * weaponSlot.stats.projectileSpeed,
+          dirY * weaponSlot.stats.projectileSpeed,
+          weaponSlot.stats.projectileSpeed
+        )
       );
-    } else {
-      angle = Math.random() * Math.PI * 2;
-    }
 
-    const dirX = Math.cos(angle);
-    const dirY = Math.sin(angle);
+      projectile.addComponent(
+        new ProjectileComponent(
+          Math.floor(weaponSlot.stats.damage),
+          weaponSlot.stats.projectileSpeed,
+          weaponSlot.stats.pierce,
+          weaponSlot.stats.duration,
+          owner.id
+        )
+      );
 
-    projectile.addComponent(new TransformComponent(transform.x, transform.y));
-    projectile.addComponent(
-      new VelocityComponent(
-        dirX * weaponSlot.stats.projectileSpeed,
-        dirY * weaponSlot.stats.projectileSpeed,
-        weaponSlot.stats.projectileSpeed
-      )
-    );
+      projectile.addComponent(
+        new ColliderComponent(
+          10 * weaponSlot.stats.area,
+          ColliderLayer.PlayerProjectile,
+          ColliderLayer.Enemy
+        )
+      );
 
-    projectile.addComponent(
-      new ProjectileComponent(
-        Math.floor(weaponSlot.stats.damage),
-        weaponSlot.stats.projectileSpeed,
-        weaponSlot.stats.pierce,
-        weaponSlot.stats.duration,
-        owner.id
-      )
-    );
+      const sprite = new SpriteComponent('fire-effect', 20, 20, 0xffffff, 5);
+      projectile.addComponent(sprite);
 
-    projectile.addComponent(
-      new ColliderComponent(
-        10 * weaponSlot.stats.area,
-        ColliderLayer.PlayerProjectile,
-        ColliderLayer.Enemy
-      )
-    );
-
-    const sprite = new SpriteComponent('fire-effect', 20, 20, 0xffffff, 5);
-    projectile.addComponent(sprite);
-
-    if (this.scene) {
-      const projSprite = this.scene.add.sprite(transform.x, transform.y, 'fire-effect');
-      projSprite.setDepth(5);
-      projSprite.setScale(1.0); // 2배 증가 (0.5 → 1.0)
-      projSprite.play('fire-attack');
-      sprite.setSprite(projSprite);
+      if (this.scene) {
+        const projSprite = this.scene.add.sprite(transform.x, transform.y, 'fire-effect');
+        projSprite.setDepth(5);
+        // area에 따라 크기 조정 (기본 1.0에서 area만큼 증가)
+        projSprite.setScale(1.0 * weaponSlot.stats.area);
+        projSprite.play('fire-attack');
+        sprite.setSprite(projSprite);
+      }
     }
   }
 
@@ -1042,93 +1040,99 @@ export class WeaponSystem extends System {
   private createMeteorStrike(owner: Entity, transform: TransformComponent, weaponSlot: WeaponSlot): void {
     if (!this.scene) return;
 
-    // 화면 범위 내 랜덤 위치 선택
     const camera = this.scene.cameras.main;
-    const targetX = transform.x + (Math.random() - 0.5) * camera.width * 0.8;
-    const targetY = transform.y + (Math.random() - 0.5) * camera.height * 0.8;
 
-    // 경고 표시 (타겟 위치에 원형 표시)
-    const warningCircle = this.scene.add.circle(targetX, targetY, 80 * weaponSlot.stats.area, 0xff0000, 0.3);
-    warningCircle.setDepth(5);
-    warningCircle.setStrokeStyle(3, 0xff0000, 0.8);
+    // projectileCount만큼 메테오 생성
+    for (let i = 0; i < weaponSlot.stats.projectileCount; i++) {
+      // 각 메테오마다 약간의 딜레이를 줘서 연속으로 떨어지는 효과
+      this.scene.time.delayedCall(i * 300, () => {
+        if (!this.scene) return;
 
-    this.scene.tweens.add({
-      targets: warningCircle,
-      alpha: 0,
-      duration: 800,
-      onComplete: () => warningCircle.destroy(),
-    });
+        // 화면 범위 내 랜덤 위치 선택
+        const targetX = transform.x + (Math.random() - 0.5) * camera.width * 0.8;
+        const targetY = transform.y + (Math.random() - 0.5) * camera.height * 0.8;
 
-    // 메테오 낙하 이펙트 (meteor_effect.png 스프라이트시트 사용)
-    // 프레임 크기: 100x250px, 17프레임 (낙하 + 폭발 애니메이션 포함)
-    // 스프라이트 자체가 위에서 아래로 떨어지는 애니메이션이므로 y좌표 고정
-    const meteorScale = 2;
-    // 착지 지점이 targetY에 오도록 스프라이트 위치 조정
-    // 메테오가 스프라이트 하단 근처에서 착지하므로 스프라이트 중심을 targetY로 설정
-    const meteorSprite = this.scene.add.sprite(targetX, targetY - 150, 'meteor-effect');
-    meteorSprite.setDepth(8);
-    meteorSprite.setScale(meteorScale);
-    meteorSprite.play('meteor-attack'); // 애니메이션 재생
+        // 경고 표시 (타겟 위치에 원형 표시)
+        const warningCircle = this.scene.add.circle(targetX, targetY, 80 * weaponSlot.stats.area, 0xff0000, 0.3);
+        warningCircle.setDepth(5);
+        warningCircle.setStrokeStyle(3, 0xff0000, 0.8);
 
-    // 12fps 기준, 11프레임 도달 시간 = 11 / 12 * 1000 = 약 917ms (착지 시점)
-    // 나머지 6프레임 = 6 / 12 * 1000 = 500ms (폭발 애니메이션)
-    const impactDelay = 917;
-    const remainingDuration = 500;
+        this.scene.tweens.add({
+          targets: warningCircle,
+          alpha: 0,
+          duration: 800,
+          onComplete: () => warningCircle.destroy(),
+        });
 
-    // 11프레임(착지 시점)에서 데미지 생성 + 충격파 이펙트
-    this.scene.time.delayedCall(impactDelay, () => {
-      // 광역 데미지 생성
-      const aoe = this.world.createEntity();
-      aoe.addTag('projectile');
-      aoe.addTag('player_projectile');
+        // 메테오 낙하 이펙트 (meteor_effect.png 스프라이트시트 사용)
+        const meteorScale = 2 * weaponSlot.stats.area; // area에 따라 크기 조정
+        const yOffset = -150 * weaponSlot.stats.area; // area에 비례해서 y 오프셋 조정
+        const meteorSprite = this.scene.add.sprite(targetX, targetY + yOffset, 'meteor-effect');
+        meteorSprite.setDepth(8);
+        meteorSprite.setScale(meteorScale);
+        meteorSprite.play('meteor-attack'); // 애니메이션 재생
 
-      aoe.addComponent(new TransformComponent(targetX, targetY));
-      aoe.addComponent(new VelocityComponent(0, 0, 0));
+        // 애니메이션 완료 후 스프라이트 페이드아웃 및 제거
+        meteorSprite.once('animationcomplete', () => {
+          this.scene!.tweens.add({
+            targets: meteorSprite,
+            alpha: 0,
+            duration: 300,
+            onComplete: () => {
+              meteorSprite.destroy();
+            },
+          });
+        });
 
-      aoe.addComponent(
-        new ProjectileComponent(
-          Math.floor(weaponSlot.stats.damage),
-          0,
-          weaponSlot.stats.pierce,
-          remainingDuration / 1000, // 나머지 애니메이션 시간 동안 데미지 지속
-          owner.id
-        )
-      );
+        // 12fps 기준, 11프레임 도달 시간 = 11 / 12 * 1000 = 약 917ms (착지 시점)
+        // 나머지 6프레임 = 6 / 12 * 1000 = 500ms (폭발 애니메이션)
+        const impactDelay = 917;
+        const remainingDuration = 500;
 
-      aoe.addComponent(
-        new ColliderComponent(
-          80 * weaponSlot.stats.area,
-          ColliderLayer.PlayerProjectile,
-          ColliderLayer.Enemy
-        )
-      );
+        // 11프레임(착지 시점)에서 데미지 생성 + 충격파 이펙트
+        this.scene.time.delayedCall(impactDelay, () => {
+          // 광역 데미지 생성
+          const aoe = this.world.createEntity();
+          aoe.addTag('projectile');
+          aoe.addTag('player_projectile');
 
-      // 충격파 링 효과
-      const shockwave = this.scene!.add.circle(targetX, targetY, 40, 0xff4400, 0);
-      shockwave.setDepth(5);
-      shockwave.setStrokeStyle(5, 0xff4400, 1);
+          aoe.addComponent(new TransformComponent(targetX, targetY));
+          aoe.addComponent(new VelocityComponent(0, 0, 0));
 
-      this.scene!.tweens.add({
-        targets: shockwave,
-        scaleX: 6,
-        scaleY: 6,
-        alpha: 0,
-        duration: remainingDuration,
-        ease: 'Power2',
-        onComplete: () => shockwave.destroy(),
+          aoe.addComponent(
+            new ProjectileComponent(
+              Math.floor(weaponSlot.stats.damage),
+              0,
+              weaponSlot.stats.pierce,
+              remainingDuration / 1000, // 나머지 애니메이션 시간 동안 데미지 지속
+              owner.id
+            )
+          );
+
+          aoe.addComponent(
+            new ColliderComponent(
+              80 * weaponSlot.stats.area,
+              ColliderLayer.PlayerProjectile,
+              ColliderLayer.Enemy
+            )
+          );
+
+          // 충격파 링 효과
+          const shockwave = this.scene!.add.circle(targetX, targetY, 40, 0xff4400, 0);
+          shockwave.setDepth(5);
+          shockwave.setStrokeStyle(5, 0xff4400, 1);
+
+          this.scene!.tweens.add({
+            targets: shockwave,
+            scaleX: 6 * weaponSlot.stats.area, // area에 따라 충격파 크기 조정
+            scaleY: 6 * weaponSlot.stats.area,
+            alpha: 0,
+            duration: remainingDuration,
+            ease: 'Power2',
+            onComplete: () => shockwave.destroy(),
+          });
+        });
       });
-    });
-
-    // 애니메이션 완료 후 스프라이트 페이드아웃 및 제거
-    meteorSprite.once('animationcomplete', () => {
-      this.scene!.tweens.add({
-        targets: meteorSprite,
-        alpha: 0,
-        duration: 300,
-        onComplete: () => {
-          meteorSprite.destroy();
-        },
-      });
-    });
+    }
   }
 }

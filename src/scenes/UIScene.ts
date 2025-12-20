@@ -62,6 +62,7 @@ export class UIScene extends Phaser.Scene {
   // 개발자 모드 관련
   private isDevMode = false;
   private devPanelVisible = false;
+  private needsSkillRefresh = false;
   private devToggleButton!: Phaser.GameObjects.Container;
   private devPanel!: Phaser.GameObjects.Container;
   private coordsText!: Phaser.GameObjects.Text;
@@ -78,13 +79,11 @@ export class UIScene extends Phaser.Scene {
     this.gameScene = data.gameScene;
     this.playerWeapons = new Map();
     this.playerPassives = new Map();
-    // 플레이어가 시작할 때 가지고 있는 무기들
+    // 플레이어가 시작할 때 가지고 있는 무기: 화염구만
     this.playerWeapons.set(WeaponType.Fireball, 1);
-    this.playerWeapons.set(WeaponType.IceBolt, 1);
-    this.playerWeapons.set(WeaponType.Meteor, 1);
     this.lastPlayerLevel = 1;
     this.isLevelUpShowing = false;
-    
+
     // 개발자 모드 초기화
     this.isDevMode = isDevelopmentMode();
     this.devPanelVisible = false;
@@ -113,6 +112,10 @@ export class UIScene extends Phaser.Scene {
     if (this.isDevMode) {
       this.createDevModeUI();
     }
+
+    // 시작 무기(Fireball)를 활성 스킬로 설정
+    this.selectedSkills.add(WeaponType.Fireball);
+    this.gameScene.setActiveSkills(Array.from(this.selectedSkills));
   }
 
   private handleLeftKey(): void {
@@ -469,6 +472,8 @@ export class UIScene extends Phaser.Scene {
 
   private selectUpgrade(option: UpgradeOption): void {
     // Update tracking
+    const isNewWeapon = option.type === 'weapon' && option.level === 1;
+
     if (option.type === 'weapon' && option.weaponType) {
       const currentLevel = this.playerWeapons.get(option.weaponType) || 0;
       this.playerWeapons.set(option.weaponType, currentLevel + 1);
@@ -479,6 +484,25 @@ export class UIScene extends Phaser.Scene {
 
     // Apply to player
     this.gameScene.applyUpgrade(option);
+
+    // 새로운 무기를 추가한 경우 즉시 활성화
+    if (isNewWeapon && option.weaponType) {
+      // 새 스킬을 선택된 스킬 목록에 추가
+      this.selectedSkills.add(option.weaponType);
+      // GameScene에 활성 스킬 목록 전달하여 즉시 발사되도록 함
+      this.gameScene.setActiveSkills(Array.from(this.selectedSkills));
+
+      // 개발자 모드일 경우 패널 업데이트
+      if (this.isDevMode) {
+        this.needsSkillRefresh = true;
+        if (this.devPanelVisible) {
+          this.time.delayedCall(0, () => {
+            this.refreshSkillButtons();
+            this.needsSkillRefresh = false;
+          });
+        }
+      }
+    }
 
     // Hide level up screen
     this.levelUpContainer.setVisible(false);
@@ -722,16 +746,23 @@ export class UIScene extends Phaser.Scene {
     const buttonSize = 36;
     const padding = 4;
     const buttonsPerRow = Math.floor(maxWidth / (buttonSize + padding));
-    
-    // 현재 플레이어가 가지고 있는 스킬들만 표시
+
+    // 개발자 모드에서는 모든 구현된 스킬 표시
+    const allSkills = [
+      WeaponType.Fireball,
+      WeaponType.IceBolt,
+      WeaponType.Meteor,
+    ];
+
+    // 현재 플레이어가 실제로 가지고 있는 스킬들
     const playerSkills = this.gameScene.getPlayerWeaponTypes();
-    
-    // 초기 상태: 모든 보유 스킬 활성화 (selectedSkills에 추가)
+
+    // 플레이어가 가진 스킬만 초기에 활성화 상태로 설정
     playerSkills.forEach(skill => this.selectedSkills.add(skill));
     // GameScene에도 전달
     this.gameScene.setActiveSkills(Array.from(this.selectedSkills));
-    
-    playerSkills.forEach((skillType, index) => {
+
+    allSkills.forEach((skillType, index) => {
       const row = Math.floor(index / buttonsPerRow);
       const col = index % buttonsPerRow;
       const x = startX + col * (buttonSize + padding);
@@ -740,10 +771,13 @@ export class UIScene extends Phaser.Scene {
       const container = this.add.container(x, y);
       const iconInfo = SKILL_ICON_MAP[skillType];
 
-      // 배경 - 초기 상태는 모두 활성화(초록색 테두리)
-      const bg = this.add.rectangle(buttonSize / 2, buttonSize / 2, buttonSize, buttonSize, 
+      // 플레이어가 실제로 가진 스킬인지 확인
+      const isActive = this.selectedSkills.has(skillType);
+
+      // 배경 - 보유한 스킬은 활성화(초록색), 미보유는 비활성화(회색)
+      const bg = this.add.rectangle(buttonSize / 2, buttonSize / 2, buttonSize, buttonSize,
         0x333333, 0.9);
-      bg.setStrokeStyle(3, 0x00ff00); // 활성화: 초록색
+      bg.setStrokeStyle(3, isActive ? 0x00ff00 : 0x666666);
 
       // 스킬 아이콘
       let icon: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image;
@@ -753,6 +787,7 @@ export class UIScene extends Phaser.Scene {
         icon = this.add.image(buttonSize / 2, buttonSize / 2, iconInfo.textureKey);
       }
       icon.setDisplaySize(buttonSize - 8, buttonSize - 8);
+      icon.setAlpha(isActive ? 1 : 0.4); // 비활성화 스킬은 반투명
 
       container.add([bg, icon]);
 
@@ -792,8 +827,15 @@ export class UIScene extends Phaser.Scene {
           this.selectedSkills.add(currentSkillType);
           bg.setStrokeStyle(3, 0x00ff00); // 활성화: 초록색
           icon.setAlpha(1);
+
+          // 플레이어가 해당 무기를 가지고 있지 않으면 추가 (개발자 모드)
+          const playerSkills = this.gameScene.getPlayerWeaponTypes();
+          if (!playerSkills.includes(currentSkillType)) {
+            // 무기를 플레이어에게 추가
+            this.gameScene.addWeaponToPlayer(currentSkillType);
+          }
         }
-        
+
         // GameScene에 선택된 스킬 전달
         this.gameScene.setActiveSkills(Array.from(this.selectedSkills));
       });
@@ -808,10 +850,28 @@ export class UIScene extends Phaser.Scene {
     this.devPanelVisible = !this.devPanelVisible;
     this.devPanel.setVisible(this.devPanelVisible);
 
-    // 패널 열릴 때 스킬 버튼 상태 업데이트
+    // 패널 열릴 때 스킬 버튼 새로고침
     if (this.devPanelVisible) {
-      this.updateSkillButtonStates();
+      // 새로운 스킬이 추가되었거나 항상 새로고침
+      if (this.needsSkillRefresh) {
+        this.refreshSkillButtons();
+        this.needsSkillRefresh = false;
+      } else {
+        // 첫 번째 열기이거나 기존 스킬 상태 확인을 위해 새로고침
+        this.refreshSkillButtons();
+      }
     }
+  }
+
+  private refreshSkillButtons(): void {
+    // 기존 스킬 버튼들 제거
+    this.skillButtons.forEach((container) => {
+      container.destroy();
+    });
+    this.skillButtons.clear();
+
+    // 스킬 버튼 다시 생성
+    this.createSkillButtons(10, 155, 260);
   }
 
   private updateSkillButtonStates(): void {

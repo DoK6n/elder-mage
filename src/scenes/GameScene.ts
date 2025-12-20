@@ -224,23 +224,20 @@ export class GameScene extends Phaser.Scene {
     weaponType: WeaponType,
     level: number
   ): void {
-    const existingWeapon = player.getComponent(WeaponComponent as ComponentClass<WeaponComponent>)! as WeaponComponent;
+    const weaponComp = player.getComponent(WeaponComponent as ComponentClass<WeaponComponent>)! as WeaponComponent;
+    if (!weaponComp) return;
 
-    if (existingWeapon && existingWeapon.type === weaponType) {
-      // Upgrade existing weapon
-      existingWeapon.upgrade(0);
+    // 해당 무기가 이미 있는지 찾기
+    const weaponIndex = weaponComp.weapons.findIndex((w) => w.type === weaponType);
+
+    if (weaponIndex >= 0) {
+      // 기존 무기 업그레이드
+      weaponComp.upgrade(weaponIndex);
     } else if (level === 1) {
-      // Add new weapon - for now just upgrade current weapon stats
-      // In a full implementation, player would have multiple weapons
+      // 새로운 무기 추가
       const def = WEAPON_DEFINITIONS[weaponType];
-      if (existingWeapon && existingWeapon.weapons.length > 0) {
-        existingWeapon.weapons[0].stats.damage += def.baseStats.damage * 0.5;
-        existingWeapon.weapons[0].stats.projectileCount += 1;
-        existingWeapon.weapons[0].stats.cooldown *= 0.9;
-      }
-    } else if (existingWeapon) {
-      // Upgrade weapon
-      existingWeapon.upgrade(0);
+      weaponComp.addWeapon(weaponType, def.baseStats);
+      console.log(`[GameScene] 새로운 무기 추가: ${def.name}`);
     }
   }
 
@@ -343,6 +340,24 @@ export class GameScene extends Phaser.Scene {
   setActiveSkills(skills: WeaponType[]): void {
     this.activeSkills = skills;
     this.weaponSystem.setActiveSkills(skills);
+  }
+
+  addWeaponToPlayer(weaponType: WeaponType): void {
+    const players = this.world.getEntitiesWithComponents(PlayerComponent as ComponentClass<PlayerComponent>);
+    if (players.length === 0) return;
+
+    const player = players[0];
+    const weaponComp = player.getComponent(WeaponComponent as ComponentClass<WeaponComponent>) as WeaponComponent;
+    if (!weaponComp) return;
+
+    // 이미 가지고 있는지 확인
+    const hasWeapon = weaponComp.weapons.some(w => w.type === weaponType);
+    if (hasWeapon) return;
+
+    // 무기 정의에서 기본 스탯 가져오기
+    const def = WEAPON_DEFINITIONS[weaponType];
+    weaponComp.addWeapon(weaponType, def.baseStats);
+    console.log(`[DevMode] 무기 추가: ${def.name}`);
   }
 
   private drawColliders(): void {

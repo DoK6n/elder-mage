@@ -162,7 +162,20 @@ export class WeaponComponent extends Component {
       weapon.level++;
       weapon.stats.damage *= 1.2;
       weapon.stats.cooldown *= 0.95;
-      weapon.stats.area *= 1.1;
+
+      // 메테오는 밸런스 조정: 크기 5%만 증가, 투사체 증가 없음
+      if (weapon.type === WeaponType.Meteor) {
+        weapon.stats.area *= 1.05;
+        // 투사체는 항상 1개 유지
+      } else {
+        // 다른 스킬들은 10% 증가
+        weapon.stats.area *= 1.1;
+
+        // 2레벨마다 투사체 +1
+        if (weapon.level % 2 === 0) {
+          weapon.stats.projectileCount += 1;
+        }
+      }
     }
   }
 

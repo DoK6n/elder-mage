@@ -89,7 +89,7 @@ export const WEAPON_DEFINITIONS: Record<WeaponType, WeaponDefinition> = {
       cooldown: 5.0,
       projectileSpeed: 400,
       projectileCount: 1,
-      area: 2.5,
+      area: 1.25, // 기본 크기 절반으로 감소
       duration: 1.5,
       pierce: 999,
     },
@@ -429,13 +429,31 @@ export function generateUpgradeOptions(
     const def = WEAPON_DEFINITIONS[weaponType];
 
     if (currentLevel < def.maxLevel) {
+      // 업그레이드 설명 생성
+      let upgradeDesc = '';
+      if (currentLevel === 0) {
+        upgradeDesc = def.description;
+      } else {
+        const nextLevel = currentLevel + 1;
+        // 메테오는 특별한 업그레이드 (크기 5%만 증가, 투사체 증가 없음)
+        if (weaponType === WeaponType.Meteor) {
+          upgradeDesc = `Lv${nextLevel}: +20% 데미지, -5% 쿨다운, +5% 범위`;
+        } else {
+          // 다른 스킬은 짝수 레벨에서 투사체 증가
+          if (nextLevel % 2 === 0) {
+            upgradeDesc = `Lv${nextLevel}: +20% 데미지, -5% 쿨다운, +10% 범위, +1 투사체`;
+          } else {
+            upgradeDesc = `Lv${nextLevel}: +20% 데미지, -5% 쿨다운, +10% 범위`;
+          }
+        }
+      }
+
       options.push({
         id: `weapon_${weaponType}`,
         type: 'weapon',
         weaponType,
         name: def.name,
-        description:
-          currentLevel === 0 ? def.description : `Level ${currentLevel + 1}: +20% 데미지, +1 투사체`,
+        description: upgradeDesc,
         level: currentLevel + 1,
         color: def.color,
         icon: currentLevel === 0 ? 'NEW' : `Lv${currentLevel + 1}`,
