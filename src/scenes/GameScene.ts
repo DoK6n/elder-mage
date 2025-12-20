@@ -5,8 +5,9 @@ import {
   TransformComponent,
   WeaponComponent,
   VelocityComponent,
+  ColliderComponent,
 } from '../components';
-import type { WeaponType } from '../components/WeaponComponent';
+import { WeaponType } from '../components/WeaponComponent';
 import type { ComponentClass } from '../ecs/Component';
 import { World } from '../ecs/World';
 import { createPlayer } from '../entities';
@@ -39,6 +40,11 @@ export class GameScene extends Phaser.Scene {
 
   private background!: Phaser.GameObjects.TileSprite;
 
+  // 개발자 모드 관련
+  private showColliders = false;
+  private colliderGraphics!: Phaser.GameObjects.Graphics;
+  private activeSkills: WeaponType[] = [];
+
   constructor() {
     super({ key: 'GameScene' });
   }
@@ -47,12 +53,18 @@ export class GameScene extends Phaser.Scene {
     this.world = new World();
     this.isPaused = false;
     this.gameOver = false;
+    this.showColliders = false;
+    this.activeSkills = [];
 
     this.createBackground();
     this.setupSystems();
     this.createPlayer();
     this.setupCamera();
     this.setupUI();
+
+    // 개발자 모드용 충돌 범위 그래픽
+    this.colliderGraphics = this.add.graphics();
+    this.colliderGraphics.setDepth(1000);
   }
 
   private createBackground(): void {
@@ -128,6 +140,9 @@ export class GameScene extends Phaser.Scene {
     this.world.update(dt);
 
     this.checkGameOver();
+
+    // 개발자 모드: 충돌 범위 그리기
+    this.drawColliders();
   }
 
   private checkGameOver(): void {
@@ -296,6 +311,89 @@ export class GameScene extends Phaser.Scene {
             w.stats.area *= 1 + effect.areaBonus;
           }
         }
+      }
+    }
+  }
+
+  // ========== 개발자 모드 메서드들 ==========
+
+  getPlayerPosition(): { x: number; y: number } | null {
+    const players = this.world.getEntitiesWithComponents(PlayerComponent as ComponentClass<PlayerComponent>, TransformComponent as ComponentClass<TransformComponent>);
+    if (players.length === 0) return null;
+
+    const transform = players[0].getComponent(TransformComponent as ComponentClass<TransformComponent>)! as TransformComponent;
+    return { x: transform.x, y: transform.y };
+  }
+
+  getPlayerWeaponTypes(): WeaponType[] {
+    const players = this.world.getEntitiesWithComponents(PlayerComponent as ComponentClass<PlayerComponent>, WeaponComponent as ComponentClass<WeaponComponent>);
+    if (players.length === 0) return [];
+
+    const weapon = players[0].getComponent(WeaponComponent as ComponentClass<WeaponComponent>)! as WeaponComponent;
+    return weapon.weapons.map(w => w.type);
+  }
+
+  setShowColliders(show: boolean): void {
+    this.showColliders = show;
+    if (!show && this.colliderGraphics) {
+      this.colliderGraphics.clear();
+    }
+  }
+
+  setActiveSkills(skills: WeaponType[]): void {
+    this.activeSkills = skills;
+    this.weaponSystem.setActiveSkills(skills);
+  }
+
+  private drawColliders(): void {
+    if (!this.showColliders || !this.colliderGraphics) return;
+
+    this.colliderGraphics.clear();
+
+    // 플레이어 충돌 범위 (녹색)
+    const players = this.world.getEntitiesWithComponents(
+      TransformComponent as ComponentClass<TransformComponent>,
+      ColliderComponent as ComponentClass<ColliderComponent>,
+      PlayerComponent as ComponentClass<PlayerComponent>
+    );
+    for (const entity of players) {
+      const transform = entity.getComponent(TransformComponent as ComponentClass<TransformComponent>)! as TransformComponent;
+      const collider = entity.getComponent(ColliderComponent as ComponentClass<ColliderComponent>)! as ColliderComponent;
+      this.colliderGraphics.lineStyle(2, 0x00ff00, 0.8);
+      this.colliderGraphics.strokeCircle(transform.x, transform.y, collider.radius);
+    }
+
+    // 적 충돌 범위 (빨간색)
+    const enemies = this.world.getEntitiesWithTag('enemy');
+    for (const entity of enemies) {
+      const transform = entity.getComponent(TransformComponent as ComponentClass<TransformComponent>);
+      const collider = entity.getComponent(ColliderComponent as ComponentClass<ColliderComponent>);
+      if (transform && collider) {
+        this.colliderGraphics.lineStyle(2, 0xff0000, 0.6);
+        this.colliderGraphics.strokeCircle(transform.x, transform.y, collider.radius);
+      }
+    }
+
+    // 투사체 충돌 범위 (노란색/파란색)
+    const projectiles = this.world.getEntitiesWithTag('projectile');
+    for (const entity of projectiles) {
+      const transform = entity.getComponent(TransformComponent as ComponentClass<TransformComponent>);
+      const collider = entity.getComponent(ColliderComponent as ComponentClass<ColliderComponent>);
+      if (transform && collider) {
+        const isPlayerProjectile = entity.hasTag('player_projectile');
+        this.colliderGraphics.lineStyle(2, isPlayerProjectile ? 0x00ffff : 0xff00ff, 0.5);
+        this.colliderGraphics.strokeCircle(transform.x, transform.y, collider.radius);
+      }
+    }
+
+    // 픽업 아이템 충돌 범위 (보라색)
+    const pickups = this.world.getEntitiesWithTag('pickup');
+    for (const entity of pickups) {
+      const transform = entity.getComponent(TransformComponent as ComponentClass<TransformComponent>);
+      const collider = entity.getComponent(ColliderComponent as ComponentClass<ColliderComponent>);
+      if (transform && collider) {
+        this.colliderGraphics.lineStyle(2, 0xff00ff, 0.5);
+        this.colliderGraphics.strokeCircle(transform.x, transform.y, collider.radius);
       }
     }
   }

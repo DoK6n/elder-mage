@@ -23,6 +23,7 @@ import { WEAPON_DEFINITIONS } from '../game/WeaponData';
 export class WeaponSystem extends System {
   public priority = 20;
   private scene: Phaser.Scene | null = null;
+  private activeSkills: WeaponType[] = []; // 개발자 모드에서 선택된 스킬만 발동
 
   protected readonly requiredComponents: ComponentClass[] = [
     TransformComponent,
@@ -32,6 +33,10 @@ export class WeaponSystem extends System {
 
   setScene(scene: Phaser.Scene): void {
     this.scene = scene;
+  }
+
+  setActiveSkills(skills: WeaponType[]): void {
+    this.activeSkills = skills;
   }
 
   update(dt: number): void {
@@ -45,6 +50,14 @@ export class WeaponSystem extends System {
 
       // 모든 무기를 순회하며 발사 가능한 무기 발사
       for (let i = 0; i < weapon.weapons.length; i++) {
+        // 개발자 모드에서 특정 스킬만 선택된 경우 필터링
+        if (this.activeSkills.length > 0) {
+          const weaponType = weapon.weapons[i].type;
+          if (!this.activeSkills.includes(weaponType)) {
+            continue; // 선택되지 않은 스킬은 스킵
+          }
+        }
+
         if (weapon.canFire(i)) {
           this.fireWeapon(entity, transform, weapon, i);
           weapon.fire(i);

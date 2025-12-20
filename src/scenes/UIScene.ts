@@ -1,7 +1,39 @@
 import Phaser from 'phaser';
-import { generateUpgradeOptions, type UpgradeOption } from '../game/WeaponData';
+import { generateUpgradeOptions, WEAPON_DEFINITIONS, type UpgradeOption } from '../game/WeaponData';
 import { WeaponType } from '../components/WeaponComponent';
 import type { GameScene } from './GameScene';
+
+// 개발자 모드 설정 - 개발 환경에서만 활성화 (프로덕션에서는 절대 표시 안됨)
+const isDevelopmentMode = (): boolean => {
+  // Vite 개발 환경에서만 활성화 (프로덕션 빌드에서는 항상 false)
+  return import.meta.env.DEV;
+};
+
+// 스킬별 대표 텍스처 및 프레임 정보
+interface SkillIconInfo {
+  textureKey: string;
+  frame?: number;
+  color: number;
+}
+
+const SKILL_ICON_MAP: Record<WeaponType, SkillIconInfo> = {
+  [WeaponType.MagicMissile]: { textureKey: 'proj_magic', color: 0x00ffff },
+  [WeaponType.Fireball]: { textureKey: 'fire-effect', frame: 3, color: 0xff4500 },
+  [WeaponType.FireWall]: { textureKey: 'proj_firewall', color: 0xff6600 },
+  [WeaponType.Meteor]: { textureKey: 'meteor-effect', frame: 10, color: 0xff2200 },
+  [WeaponType.IceBolt]: { textureKey: 'ice-effect', frame: 5, color: 0x1e90ff },
+  [WeaponType.WaterShield]: { textureKey: 'proj_watershield', color: 0x4169e1 },
+  [WeaponType.Blizzard]: { textureKey: 'proj_blizzard', color: 0xadd8e6 },
+  [WeaponType.WindBlade]: { textureKey: 'proj_wind', color: 0x32cd32 },
+  [WeaponType.Tornado]: { textureKey: 'proj_tornado', color: 0x228b22 },
+  [WeaponType.AirSlash]: { textureKey: 'proj_airslash', color: 0x90ee90 },
+  [WeaponType.RockSpike]: { textureKey: 'proj_rock', color: 0x8b4513 },
+  [WeaponType.Earthquake]: { textureKey: 'proj_earthquake', color: 0xa0522d },
+  [WeaponType.SummonGolem]: { textureKey: 'proj_golem', color: 0x696969 },
+  [WeaponType.LightningBolt]: { textureKey: 'proj_lightning', color: 0xffff00 },
+  [WeaponType.ChainLightning]: { textureKey: 'proj_chain', color: 0xffd700 },
+  [WeaponType.ThunderStorm]: { textureKey: 'proj_thunder', color: 0xf0e68c },
+};
 
 export class UIScene extends Phaser.Scene {
   private gameScene!: GameScene;
@@ -27,6 +59,17 @@ export class UIScene extends Phaser.Scene {
   private upgradeCards: Phaser.GameObjects.Container[] = [];
   private currentUpgradeOptions: UpgradeOption[] = [];
 
+  // 개발자 모드 관련
+  private isDevMode = false;
+  private devPanelVisible = false;
+  private devToggleButton!: Phaser.GameObjects.Container;
+  private devPanel!: Phaser.GameObjects.Container;
+  private coordsText!: Phaser.GameObjects.Text;
+  private showColliders = false;
+  private colliderGraphics!: Phaser.GameObjects.Graphics;
+  private selectedSkills: Set<WeaponType> = new Set();
+  private skillButtons: Map<WeaponType, Phaser.GameObjects.Container> = new Map();
+
   constructor() {
     super({ key: 'UIScene' });
   }
@@ -38,6 +81,13 @@ export class UIScene extends Phaser.Scene {
     this.playerWeapons.set(WeaponType.MagicMissile, 1);
     this.lastPlayerLevel = 1;
     this.isLevelUpShowing = false;
+    
+    // 개발자 모드 초기화
+    this.isDevMode = isDevelopmentMode();
+    this.devPanelVisible = false;
+    this.showColliders = false;
+    this.selectedSkills = new Set();
+    this.skillButtons = new Map();
   }
 
   create(): void {
@@ -55,6 +105,11 @@ export class UIScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-RIGHT', this.handleRightKey, this);
     this.input.keyboard?.on('keydown-ENTER', this.handleConfirmKey, this);
     this.input.keyboard?.on('keydown-SPACE', this.handleConfirmKey, this);
+
+    // 개발자 모드 UI 생성
+    if (this.isDevMode) {
+      this.createDevModeUI();
+    }
   }
 
   private handleLeftKey(): void {
@@ -469,6 +524,9 @@ export class UIScene extends Phaser.Scene {
     this.updateExpBar(stats.experience, stats.experienceToNext, stats.level);
     this.updateStats(stats.kills, stats.time);
     this.updateEnemyCount();
+
+    // 개발자 모드 업데이트
+    this.updateDevPanel();
   }
 
   private updateHealthBar(current: number, max: number): void {
@@ -518,5 +576,261 @@ export class UIScene extends Phaser.Scene {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  // ========== 개발자 모드 UI ==========
+
+  private createDevModeUI(): void {
+    // 개발자 모드 토글 버튼 (우측 하단)
+    this.createDevToggleButton();
+
+    // 개발자 패널 (숨겨진 상태로 시작)
+    this.createDevPanel();
+
+    // 충돌 범위 그리기용 Graphics (GameScene에서 렌더링)
+    this.colliderGraphics = this.gameScene.add.graphics();
+    this.colliderGraphics.setDepth(1000);
+  }
+
+  private createDevToggleButton(): void {
+    const x = this.cameras.main.width - 60;
+    const y = this.cameras.main.height - 30;
+
+    this.devToggleButton = this.add.container(x, y);
+
+    const bg = this.add.rectangle(0, 0, 100, 40, 0x333333, 0.9);
+    bg.setStrokeStyle(2, 0x00ff00);
+
+    const text = this.add.text(0, 0, '🔧 DEV', {
+      fontFamily: 'Arial',
+      fontSize: '14px',
+      color: '#00ff00',
+    }).setOrigin(0.5, 0.5);
+
+    this.devToggleButton.add([bg, text]);
+    this.devToggleButton.setDepth(200);
+
+    bg.setInteractive({ useHandCursor: true });
+    bg.on('pointerover', () => bg.setFillStyle(0x444444));
+    bg.on('pointerout', () => bg.setFillStyle(0x333333));
+    bg.on('pointerdown', () => this.toggleDevPanel());
+  }
+
+  private createDevPanel(): void {
+    const panelWidth = 280;
+    const panelHeight = 400;
+    const x = this.cameras.main.width - panelWidth - 10;
+    const y = this.cameras.main.height - panelHeight - 50;
+
+    this.devPanel = this.add.container(x, y);
+    this.devPanel.setVisible(false);
+    this.devPanel.setDepth(199);
+
+    // 패널 배경
+    const bg = this.add.rectangle(panelWidth / 2, panelHeight / 2, panelWidth, panelHeight, 0x1a1a2e, 0.95);
+    bg.setStrokeStyle(2, 0x00ff00);
+    this.devPanel.add(bg);
+
+    // 제목
+    const title = this.add.text(panelWidth / 2, 15, '🛠️ Developer Mode', {
+      fontFamily: 'Arial',
+      fontSize: '16px',
+      color: '#00ff00',
+      fontStyle: 'bold',
+    }).setOrigin(0.5, 0);
+    this.devPanel.add(title);
+
+    // 좌표 표시
+    const coordsLabel = this.add.text(10, 45, 'Player Position:', {
+      fontFamily: 'Arial',
+      fontSize: '12px',
+      color: '#aaaaaa',
+    });
+    this.devPanel.add(coordsLabel);
+
+    this.coordsText = this.add.text(10, 62, 'X: 0, Y: 0', {
+      fontFamily: 'Arial',
+      fontSize: '14px',
+      color: '#ffffff',
+    });
+    this.devPanel.add(this.coordsText);
+
+    // 충돌 범위 토글
+    const colliderToggle = this.createToggleButton(10, 90, 'Show Colliders', this.showColliders, (enabled) => {
+      this.showColliders = enabled;
+      this.gameScene.setShowColliders(enabled);
+    });
+    this.devPanel.add(colliderToggle);
+
+    // 스킬 선택 섹션
+    const skillsLabel = this.add.text(10, 130, 'Active Skills (click to toggle):', {
+      fontFamily: 'Arial',
+      fontSize: '12px',
+      color: '#aaaaaa',
+    });
+    this.devPanel.add(skillsLabel);
+
+    // 스킬 버튼들 생성
+    this.createSkillButtons(10, 155, panelWidth - 20);
+  }
+
+  private createToggleButton(
+    x: number,
+    y: number,
+    label: string,
+    initialState: boolean,
+    onChange: (enabled: boolean) => void
+  ): Phaser.GameObjects.Container {
+    const container = this.add.container(x, y);
+
+    const boxSize = 20;
+    const box = this.add.rectangle(boxSize / 2, boxSize / 2, boxSize, boxSize, 
+      initialState ? 0x00ff00 : 0x333333);
+    box.setStrokeStyle(2, 0x00ff00);
+
+    const checkmark = this.add.text(boxSize / 2, boxSize / 2, '✓', {
+      fontFamily: 'Arial',
+      fontSize: '14px',
+      color: '#000000',
+    }).setOrigin(0.5, 0.5);
+    checkmark.setVisible(initialState);
+
+    const text = this.add.text(boxSize + 10, boxSize / 2, label, {
+      fontFamily: 'Arial',
+      fontSize: '12px',
+      color: '#ffffff',
+    }).setOrigin(0, 0.5);
+
+    container.add([box, checkmark, text]);
+
+    let enabled = initialState;
+    box.setInteractive({ useHandCursor: true });
+    box.on('pointerdown', () => {
+      enabled = !enabled;
+      box.setFillStyle(enabled ? 0x00ff00 : 0x333333);
+      checkmark.setVisible(enabled);
+      onChange(enabled);
+    });
+
+    return container;
+  }
+
+  private createSkillButtons(startX: number, startY: number, maxWidth: number): void {
+    const buttonSize = 36;
+    const padding = 4;
+    const buttonsPerRow = Math.floor(maxWidth / (buttonSize + padding));
+    
+    // 현재 플레이어가 가지고 있는 스킬들 가져오기
+    const playerSkills = this.gameScene.getPlayerWeaponTypes();
+    
+    // 모든 스킬 타입 순회
+    const allSkills = Object.values(WeaponType);
+    
+    allSkills.forEach((skillType, index) => {
+      const row = Math.floor(index / buttonsPerRow);
+      const col = index % buttonsPerRow;
+      const x = startX + col * (buttonSize + padding);
+      const y = startY + row * (buttonSize + padding);
+
+      const container = this.add.container(x, y);
+      const iconInfo = SKILL_ICON_MAP[skillType];
+      const hasSkill = playerSkills.includes(skillType);
+
+      // 배경
+      const bg = this.add.rectangle(buttonSize / 2, buttonSize / 2, buttonSize, buttonSize, 
+        hasSkill ? 0x333333 : 0x1a1a1a, hasSkill ? 0.9 : 0.5);
+      bg.setStrokeStyle(2, this.selectedSkills.has(skillType) ? 0x00ff00 : iconInfo.color);
+
+      // 스킬 아이콘
+      let icon: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image;
+      if (iconInfo.frame !== undefined) {
+        icon = this.add.sprite(buttonSize / 2, buttonSize / 2, iconInfo.textureKey, iconInfo.frame);
+      } else {
+        icon = this.add.image(buttonSize / 2, buttonSize / 2, iconInfo.textureKey);
+      }
+      icon.setDisplaySize(buttonSize - 8, buttonSize - 8);
+      
+      if (!hasSkill) {
+        icon.setAlpha(0.3);
+      }
+
+      container.add([bg, icon]);
+
+      // 툴팁 (스킬 이름)
+      const def = WEAPON_DEFINITIONS[skillType];
+      
+      bg.setInteractive({ useHandCursor: true });
+      
+      // 호버 시 스킬 이름 표시
+      bg.on('pointerover', () => {
+        const tooltip = this.add.text(buttonSize / 2, -10, def.name, {
+          fontFamily: 'Arial',
+          fontSize: '10px',
+          color: '#ffffff',
+          backgroundColor: '#000000',
+          padding: { x: 4, y: 2 },
+        }).setOrigin(0.5, 1);
+        tooltip.setName('tooltip');
+        container.add(tooltip);
+      });
+
+      bg.on('pointerout', () => {
+        const tooltip = container.getByName('tooltip');
+        if (tooltip) tooltip.destroy();
+      });
+
+      // 클릭 시 스킬 토글
+      bg.on('pointerdown', () => {
+        if (!hasSkill) return; // 보유하지 않은 스킬은 토글 불가
+
+        if (this.selectedSkills.has(skillType)) {
+          this.selectedSkills.delete(skillType);
+          bg.setStrokeStyle(2, iconInfo.color);
+        } else {
+          this.selectedSkills.add(skillType);
+          bg.setStrokeStyle(2, 0x00ff00);
+        }
+        
+        // GameScene에 선택된 스킬 전달
+        this.gameScene.setActiveSkills(Array.from(this.selectedSkills));
+      });
+
+      container.setData('skillType', skillType);
+      this.skillButtons.set(skillType, container);
+      this.devPanel.add(container);
+    });
+  }
+
+  private toggleDevPanel(): void {
+    this.devPanelVisible = !this.devPanelVisible;
+    this.devPanel.setVisible(this.devPanelVisible);
+
+    // 패널 열릴 때 스킬 버튼 상태 업데이트
+    if (this.devPanelVisible) {
+      this.updateSkillButtonStates();
+    }
+  }
+
+  private updateSkillButtonStates(): void {
+    const playerSkills = this.gameScene.getPlayerWeaponTypes();
+    
+    this.skillButtons.forEach((container, skillType) => {
+      const hasSkill = playerSkills.includes(skillType);
+      const bg = container.getAt(0) as Phaser.GameObjects.Rectangle;
+      const icon = container.getAt(1) as Phaser.GameObjects.Sprite | Phaser.GameObjects.Image;
+
+      bg.setFillStyle(hasSkill ? 0x333333 : 0x1a1a1a, hasSkill ? 0.9 : 0.5);
+      icon.setAlpha(hasSkill ? 1 : 0.3);
+    });
+  }
+
+  private updateDevPanel(): void {
+    if (!this.isDevMode || !this.devPanelVisible) return;
+
+    // 플레이어 좌표 업데이트
+    const playerPos = this.gameScene.getPlayerPosition();
+    if (playerPos && this.coordsText) {
+      this.coordsText.setText(`X: ${Math.floor(playerPos.x)}, Y: ${Math.floor(playerPos.y)}`);
+    }
   }
 }
