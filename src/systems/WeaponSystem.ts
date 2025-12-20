@@ -1047,87 +1047,76 @@ export class WeaponSystem extends System {
       onComplete: () => warningCircle.destroy(),
     });
 
-    // 메테오 낙하 이펙트 (fire-effect 사용)
-    const meteor = this.scene.add.sprite(targetX, targetY - 400, 'fire-effect');
-    meteor.setDepth(8);
-    meteor.setScale(3);
-    meteor.setAlpha(0.8);
-    meteor.setRotation(Math.PI); // 아래로 향하게 회전
-    meteor.play('fire-attack');
+    // 메테오 낙하 이펙트 (meteor_effect.png 스프라이트시트 사용)
+    // 프레임 크기: 100x250px, 17프레임 (낙하 + 폭발 애니메이션 포함)
+    // 스프라이트 자체가 위에서 아래로 떨어지는 애니메이션이므로 y좌표 고정
+    const meteorScale = 2;
+    // 착지 지점이 targetY에 오도록 스프라이트 위치 조정
+    // 메테오가 스프라이트 하단 근처에서 착지하므로 스프라이트 중심을 targetY로 설정
+    const meteorSprite = this.scene.add.sprite(targetX, targetY - 150, 'meteor-effect');
+    meteorSprite.setDepth(8);
+    meteorSprite.setScale(meteorScale);
+    meteorSprite.play('meteor-attack'); // 애니메이션 재생
 
-    // 낙하 애니메이션
-    this.scene.tweens.add({
-      targets: meteor,
-      y: targetY,
-      alpha: 1,
-      scaleX: 4,
-      scaleY: 4,
-      rotation: Math.PI + Math.PI * 2, // 회전하면서 낙하
-      duration: 800,
-      ease: 'Cubic.easeIn',
-      onComplete: () => {
-        // 광역 데미지 생성
-        const aoe = this.world.createEntity();
-        aoe.addTag('projectile');
-        aoe.addTag('player_projectile');
+    // 12fps 기준, 11프레임 도달 시간 = 11 / 12 * 1000 = 약 917ms (착지 시점)
+    // 나머지 6프레임 = 6 / 12 * 1000 = 500ms (폭발 애니메이션)
+    const impactDelay = 917;
+    const remainingDuration = 500;
 
-        aoe.addComponent(new TransformComponent(targetX, targetY));
-        aoe.addComponent(new VelocityComponent(0, 0, 0));
+    // 11프레임(착지 시점)에서 데미지 생성 + 충격파 이펙트
+    this.scene.time.delayedCall(impactDelay, () => {
+      // 광역 데미지 생성
+      const aoe = this.world.createEntity();
+      aoe.addTag('projectile');
+      aoe.addTag('player_projectile');
 
-        aoe.addComponent(
-          new ProjectileComponent(
-            Math.floor(weaponSlot.stats.damage),
-            0,
-            weaponSlot.stats.pierce,
-            0.5, // 충돌 지속 시간 증가
-            owner.id
-          )
-        );
+      aoe.addComponent(new TransformComponent(targetX, targetY));
+      aoe.addComponent(new VelocityComponent(0, 0, 0));
 
-        aoe.addComponent(
-          new ColliderComponent(
-            80 * weaponSlot.stats.area,
-            ColliderLayer.PlayerProjectile,
-            ColliderLayer.Enemy
-          )
-        );
+      aoe.addComponent(
+        new ProjectileComponent(
+          Math.floor(weaponSlot.stats.damage),
+          0,
+          weaponSlot.stats.pierce,
+          remainingDuration / 1000, // 나머지 애니메이션 시간 동안 데미지 지속
+          owner.id
+        )
+      );
 
-        const sprite = new SpriteComponent('fire-effect', 160, 160, 0xffffff, 6);
-        aoe.addComponent(sprite);
+      aoe.addComponent(
+        new ColliderComponent(
+          80 * weaponSlot.stats.area,
+          ColliderLayer.PlayerProjectile,
+          ColliderLayer.Enemy
+        )
+      );
 
-        // 폭발 이펙트 (fire-effect 애니메이션 재생)
-        const aoeSprite = this.scene!.add.sprite(targetX, targetY, 'fire-effect');
-        aoeSprite.setDepth(6);
-        aoeSprite.setScale(4);
-        aoeSprite.play('fire-attack'); // 애니메이션 재생
-        sprite.setSprite(aoeSprite);
+      // 충격파 링 효과
+      const shockwave = this.scene!.add.circle(targetX, targetY, 40, 0xff4400, 0);
+      shockwave.setDepth(5);
+      shockwave.setStrokeStyle(5, 0xff4400, 1);
 
-        // 충격파 링 효과
-        const shockwave = this.scene!.add.circle(targetX, targetY, 40, 0xff4400, 0);
-        shockwave.setDepth(5);
-        shockwave.setStrokeStyle(5, 0xff4400, 1);
+      this.scene!.tweens.add({
+        targets: shockwave,
+        scaleX: 6,
+        scaleY: 6,
+        alpha: 0,
+        duration: remainingDuration,
+        ease: 'Power2',
+        onComplete: () => shockwave.destroy(),
+      });
+    });
 
-        this.scene!.tweens.add({
-          targets: shockwave,
-          scaleX: 6,
-          scaleY: 6,
-          alpha: 0,
-          duration: 500,
-          ease: 'Power2',
-          onComplete: () => shockwave.destroy(),
-        });
-
-        // 폭발 후 페이드아웃
-        this.scene!.tweens.add({
-          targets: aoeSprite,
-          alpha: 0,
-          duration: 400,
-          delay: 100,
-          onComplete: () => {
-            meteor.destroy();
-          },
-        });
-      },
+    // 애니메이션 완료 후 스프라이트 페이드아웃 및 제거
+    meteorSprite.once('animationcomplete', () => {
+      this.scene!.tweens.add({
+        targets: meteorSprite,
+        alpha: 0,
+        duration: 300,
+        onComplete: () => {
+          meteorSprite.destroy();
+        },
+      });
     });
   }
 }

@@ -82,7 +82,10 @@ export class BootScene extends Phaser.Scene {
       frameWidth: 100,
       frameHeight: 100,
     });
-    this.load.image('magma-effect', 'assets/magmaball.gif');
+    this.load.spritesheet('meteor-effect', 'assets/tiny-rpg-pack/Characters(100x100)/Wizard/Magic(projectile)/meteor_effect.png', {
+      frameWidth: 100,
+      frameHeight: 250,
+    });
   }
 
   private loadMonsterSprites(): void {
@@ -186,6 +189,13 @@ export class BootScene extends Phaser.Scene {
       key: 'fire-attack',
       frames: this.anims.generateFrameNumbers('fire-effect', { start: 0, end: 5 }),
       frameRate: 10,
+      repeat: 0,
+    });
+
+    this.anims.create({
+      key: 'meteor-attack',
+      frames: this.anims.generateFrameNumbers('meteor-effect', { start: 0, end: 17 }),
+      frameRate: 12, // 17프레임 / 12fps = 약 1.4초
       repeat: 0,
     });
 
