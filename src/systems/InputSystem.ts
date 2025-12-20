@@ -1,4 +1,4 @@
-import type Phaser from 'phaser';
+import Phaser from 'phaser';
 import { PlayerComponent, TransformComponent, VelocityComponent } from '../components';
 import type { ComponentClass } from '../ecs/Component';
 import { System } from '../ecs/System';

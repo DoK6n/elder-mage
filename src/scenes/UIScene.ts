@@ -30,7 +30,7 @@ export class UIScene extends Phaser.Scene {
     this.gameScene = data.gameScene;
     this.playerWeapons = new Map();
     this.playerPassives = new Map();
-    this.playerWeapons.set(WeaponType.MagicWand, 1);
+    this.playerWeapons.set(WeaponType.MagicMissile, 1);
     this.lastPlayerLevel = 1;
     this.isLevelUpShowing = false;
   }

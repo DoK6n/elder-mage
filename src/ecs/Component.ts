@@ -1,4 +1,4 @@
-export type ComponentClass<T extends Component = Component> = new (...args: unknown[]) => T;
+export type ComponentClass<T extends Component = Component> = new (...args: any[]) => T;
 
 export abstract class Component {
   private static _nextId = 0;

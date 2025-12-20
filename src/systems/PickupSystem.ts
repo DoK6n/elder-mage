@@ -1,6 +1,8 @@
 import type Phaser from 'phaser';
 import {
+  HealthComponent,
   PickupComponent,
+  PickupType,
   PlayerComponent,
   SpriteComponent,
   TransformComponent,

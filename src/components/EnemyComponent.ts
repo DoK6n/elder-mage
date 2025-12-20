@@ -13,7 +13,7 @@ export class EnemyComponent extends Component {
   public targetEntityId: number | null = null;
 
   constructor(
-    public type: EnemyType = EnemyType.Basic,
+    public type: EnemyType = EnemyType.Slime,
     public damage = 10,
     public experienceValue = 1,
     public moveSpeed = 50,

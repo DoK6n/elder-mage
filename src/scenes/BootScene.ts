@@ -33,428 +33,231 @@ export class BootScene extends Phaser.Scene {
       progressBox.destroy();
       loadingText.destroy();
     });
+
+    // Load character and monster sprites
+    this.loadCharacterSprites();
+    this.loadMonsterSprites();
+  }
+
+  private loadCharacterSprites(): void {
+    const basePath = 'assets/tiny-rpg-pack/Characters(100x100)/Wizard/Wizard';
+
+    // Load wizard sprite sheets (100x100 per frame)
+    this.load.spritesheet('player', `${basePath}/Wizard-Idle.png`, {
+      frameWidth: 100,
+      frameHeight: 100,
+    });
+    this.load.spritesheet('wizard-walk', `${basePath}/Wizard-Walk.png`, {
+      frameWidth: 100,
+      frameHeight: 100,
+    });
+    this.load.spritesheet('wizard-attack1', `${basePath}/Wizard-Attack01.png`, {
+      frameWidth: 100,
+      frameHeight: 100,
+    });
+    this.load.spritesheet('wizard-attack2', `${basePath}/Wizard-Attack02.png`, {
+      frameWidth: 100,
+      frameHeight: 100,
+    });
+    this.load.spritesheet('wizard-hurt', `${basePath}/Wizard-Hurt.png`, {
+      frameWidth: 100,
+      frameHeight: 100,
+    });
+    this.load.spritesheet('wizard-death', `${basePath}/Wizard-DEATH.png`, {
+      frameWidth: 100,
+      frameHeight: 100,
+    });
+
+    // Load wizard attack effects
+    const magicPath = 'assets/tiny-rpg-pack/Magic(Projectile)';
+    this.load.spritesheet('ice-effect', `${magicPath}/Wizard-Attack01_Effect.png`, {
+      frameWidth: 100,
+      frameHeight: 100,
+    });
+    this.load.spritesheet('fire-effect', `${magicPath}/Wizard-Attack02_Effect.png`, {
+      frameWidth: 100,
+      frameHeight: 100,
+    });
+    this.load.spritesheet('heal-effect', `${magicPath}/Priest-Heal_Effect.png`, {
+      frameWidth: 100,
+      frameHeight: 100,
+    });
+    this.load.image('magma-effect', 'assets/magmaball.gif');
+  }
+
+  private loadMonsterSprites(): void {
+    const baseCharPath = 'assets/tiny-rpg-pack/Characters(100x100)';
+
+    // Load Slime sprite sheets (100x100 per frame)
+    const slimePath = `${baseCharPath}/Slime/Slime`;
+    this.load.spritesheet('enemy_slime', `${slimePath}/Slime-Idle.png`, {
+      frameWidth: 100,
+      frameHeight: 100,
+    });
+    this.load.spritesheet('slime-walk', `${slimePath}/Slime-Walk.png`, {
+      frameWidth: 100,
+      frameHeight: 100,
+    });
+    this.load.spritesheet('slime-attack', `${slimePath}/Slime-Attack01.png`, {
+      frameWidth: 100,
+      frameHeight: 100,
+    });
+
+    // Load Orc sprite sheets
+    const orcPath = `${baseCharPath}/Orc/Orc`;
+    this.load.spritesheet('enemy_orc', `${orcPath}/Orc-Idle.png`, {
+      frameWidth: 100,
+      frameHeight: 100,
+    });
+    this.load.spritesheet('orc-walk', `${orcPath}/Orc-Walk.png`, {
+      frameWidth: 100,
+      frameHeight: 100,
+    });
+    this.load.spritesheet('orc-attack', `${orcPath}/Orc-Attack01.png`, {
+      frameWidth: 100,
+      frameHeight: 100,
+    });
+
+    // Load Skeleton sprite sheets
+    const skeletonPath = `${baseCharPath}/Skeleton/Skeleton`;
+    this.load.spritesheet('enemy_skeleton', `${skeletonPath}/Skeleton-Idle.png`, {
+      frameWidth: 100,
+      frameHeight: 100,
+    });
+    this.load.spritesheet('skeleton-walk', `${skeletonPath}/Skeleton-Walk.png`, {
+      frameWidth: 100,
+      frameHeight: 100,
+    });
+    this.load.spritesheet('skeleton-attack', `${skeletonPath}/Skeleton-Attack01.png`, {
+      frameWidth: 100,
+      frameHeight: 100,
+    });
+
+    // Goblin을 Skeleton으로 교체
+    this.load.spritesheet('enemy_goblin', `${skeletonPath}/Skeleton-Idle.png`, {
+      frameWidth: 100,
+      frameHeight: 100,
+    });
+
+    // 나머지 몬스터들도 사용 가능한 이미지로 매핑
+    // Kobold -> Slime
+    this.load.spritesheet('enemy_kobold', `${slimePath}/Slime-Idle.png`, {
+      frameWidth: 100,
+      frameHeight: 100,
+    });
+
+    // Lizardman -> Skeleton
+    this.load.spritesheet('enemy_lizardman', `${skeletonPath}/Skeleton-Idle.png`, {
+      frameWidth: 100,
+      frameHeight: 100,
+    });
+
+    // Ogre -> Orc (보스급)
+    this.load.spritesheet('enemy_ogre', `${orcPath}/Orc-Idle.png`, {
+      frameWidth: 100,
+      frameHeight: 100,
+    });
   }
 
   create(): void {
+    this.createAnimations();
     this.generateTextures();
     this.scene.start('GameScene');
   }
 
+  private createAnimations(): void {
+    // Wizard animations
+    this.anims.create({
+      key: 'player-idle',
+      frames: this.anims.generateFrameNumbers('player', { start: 0, end: 5 }),
+      frameRate: 8,
+      repeat: -1,
+    });
+
+    // Wizard attack effect animations
+    this.anims.create({
+      key: 'ice-attack',
+      frames: this.anims.generateFrameNumbers('ice-effect', { start: 0, end: 9 }), // 10개 프레임 전부 사용
+      frameRate: 10,
+      repeat: 0,
+    });
+
+    this.anims.create({
+      key: 'fire-attack',
+      frames: this.anims.generateFrameNumbers('fire-effect', { start: 0, end: 5 }),
+      frameRate: 10,
+      repeat: 0,
+    });
+
+    this.anims.create({
+      key: 'heal-effect',
+      frames: this.anims.generateFrameNumbers('heal-effect', { start: 0, end: 5 }),
+      frameRate: 10,
+      repeat: 0,
+    });
+
+    // Slime animations
+    this.anims.create({
+      key: 'slime-idle',
+      frames: this.anims.generateFrameNumbers('enemy_slime', { start: 0, end: 5 }),
+      frameRate: 6,
+      repeat: -1,
+    });
+
+    // Orc animations
+    this.anims.create({
+      key: 'orc-idle',
+      frames: this.anims.generateFrameNumbers('enemy_orc', { start: 0, end: 3 }),
+      frameRate: 6,
+      repeat: -1,
+    });
+
+    // Skeleton animations
+    this.anims.create({
+      key: 'skeleton-idle',
+      frames: this.anims.generateFrameNumbers('enemy_skeleton', { start: 0, end: 5 }),
+      frameRate: 6,
+      repeat: -1,
+    });
+
+    // Goblin uses skeleton animations
+    this.anims.create({
+      key: 'goblin-idle',
+      frames: this.anims.generateFrameNumbers('enemy_goblin', { start: 0, end: 5 }),
+      frameRate: 6,
+      repeat: -1,
+    });
+
+    // Kobold uses slime animations
+    this.anims.create({
+      key: 'kobold-idle',
+      frames: this.anims.generateFrameNumbers('enemy_kobold', { start: 0, end: 5 }),
+      frameRate: 6,
+      repeat: -1,
+    });
+
+    // Lizardman uses skeleton animations
+    this.anims.create({
+      key: 'lizardman-idle',
+      frames: this.anims.generateFrameNumbers('enemy_lizardman', { start: 0, end: 5 }),
+      frameRate: 6,
+      repeat: -1,
+    });
+
+    // Ogre uses orc animations
+    this.anims.create({
+      key: 'ogre-idle',
+      frames: this.anims.generateFrameNumbers('enemy_ogre', { start: 0, end: 3 }),
+      frameRate: 6,
+      repeat: -1,
+    });
+  }
+
   private generateTextures(): void {
-    this.createPlayerTexture();
-    this.createEnemyTextures();
+    // Player and enemy textures are now loaded from sprite sheets
     this.createProjectileTextures();
     this.createExpOrbTexture();
     this.createGolemTexture();
-  }
-
-  private createPlayerTexture(): void {
-    const g = this.add.graphics();
-    const size = 40;
-
-    // Wizard Hat - pointed cone shape
-    g.fillStyle(0x2a1a4a); // Dark purple hat
-    g.fillTriangle(20, 0, 8, 16, 32, 16);
-    // Hat brim
-    g.fillStyle(0x3a2a5a);
-    g.fillRect(6, 14, 28, 4);
-    // Hat band with gold trim
-    g.fillStyle(0xffd700);
-    g.fillRect(8, 14, 24, 2);
-    // Hat star decoration
-    g.fillStyle(0xffff00);
-    g.fillCircle(20, 8, 2);
-
-    // Head
-    g.fillStyle(0xffdbac);
-    g.fillRect(12, 16, 16, 12);
-
-    // Beard (white wizard beard)
-    g.fillStyle(0xcccccc);
-    g.fillRect(14, 24, 12, 6);
-    g.fillTriangle(16, 28, 20, 36, 24, 28);
-
-    // Eyes
-    g.fillStyle(0x4488ff); // Magical blue eyes
-    g.fillRect(14, 20, 3, 3);
-    g.fillRect(23, 20, 3, 3);
-    // Eye glint
-    g.fillStyle(0xffffff);
-    g.fillRect(15, 20, 1, 1);
-    g.fillRect(24, 20, 1, 1);
-
-    // Body (purple wizard robe)
-    g.fillStyle(0x4a2a7a);
-    g.fillRect(10, 28, 20, 10);
-    // Robe trim
-    g.fillStyle(0x6a3a9a);
-    g.fillRect(10, 28, 20, 2);
-
-    // Left arm holding staff
-    g.fillStyle(0x3a1a6a);
-    g.fillRect(4, 28, 6, 8);
-
-    // Right arm
-    g.fillStyle(0x3a1a6a);
-    g.fillRect(30, 28, 6, 8);
-
-    // Hands
-    g.fillStyle(0xffdbac);
-    g.fillRect(4, 34, 4, 4);
-    g.fillRect(32, 34, 4, 4);
-
-    // Staff
-    g.fillStyle(0x8b4513); // Brown wooden staff
-    g.fillRect(0, 10, 3, 30);
-    // Staff orb (magical)
-    g.fillStyle(0x00ffff);
-    g.fillCircle(1, 8, 4);
-    // Orb glow
-    g.fillStyle(0xffffff, 0.5);
-    g.fillCircle(0, 6, 2);
-    // Staff binding
-    g.fillStyle(0xffd700);
-    g.fillRect(0, 12, 3, 2);
-
-    g.generateTexture('player', size, size);
-    g.destroy();
-  }
-
-  private createEnemyTextures(): void {
-    // Slime - green blob (초반 몬스터)
-    this.createSlimeTexture('enemy_slime', 0x44aa44, 24);
-
-    // Goblin - small green humanoid
-    this.createGoblinTexture('enemy_goblin', 0x5a8a32, 28);
-
-    // Kobold - dog-like reptilian
-    this.createKoboldTexture('enemy_kobold', 0x8b6914, 26);
-
-    // Lizardman - tall reptilian warrior
-    this.createLizardmanTexture('enemy_lizardman', 0x2e8b57, 36);
-
-    // Orc - large green brute
-    this.createOrcTexture('enemy_orc', 0x556b2f, 44);
-
-    // Ogre - massive boss creature
-    this.createOgreTexture('enemy_ogre', 0x8b4513, 64);
-  }
-
-  private createSlimeTexture(key: string, color: number, size: number): void {
-    const g = this.add.graphics();
-
-    // Slime body
-    g.fillStyle(color);
-    g.fillEllipse(size / 2, size / 2 + 2, size - 4, size - 8);
-
-    // Highlight
-    g.fillStyle(0xffffff, 0.3);
-    g.fillEllipse(size / 2 - 4, size / 2 - 2, 6, 4);
-
-    // Eyes
-    g.fillStyle(0x000000);
-    g.fillCircle(size / 2 - 4, size / 2, 2);
-    g.fillCircle(size / 2 + 4, size / 2, 2);
-
-    // Eye whites
-    g.fillStyle(0xffffff);
-    g.fillCircle(size / 2 - 4, size / 2 - 1, 1);
-    g.fillCircle(size / 2 + 4, size / 2 - 1, 1);
-
-    g.generateTexture(key, size, size);
-    g.destroy();
-  }
-
-  private createGoblinTexture(key: string, color: number, size: number): void {
-    const g = this.add.graphics();
-    const cx = size / 2;
-    const cy = size / 2;
-
-    // Body (ragged cloth)
-    g.fillStyle(0x5a4a3a);
-    g.fillRect(cx - 6, cy, 12, 10);
-
-    // Head (large for goblin)
-    g.fillStyle(color);
-    g.fillEllipse(cx, cy - 4, 14, 12);
-
-    // Large pointed ears
-    g.fillStyle(color);
-    g.fillTriangle(cx - 10, cy - 4, cx - 6, cy - 10, cx - 4, cy - 2);
-    g.fillTriangle(cx + 10, cy - 4, cx + 6, cy - 10, cx + 4, cy - 2);
-
-    // Eyes (yellow, menacing)
-    g.fillStyle(0xffff00);
-    g.fillCircle(cx - 3, cy - 4, 3);
-    g.fillCircle(cx + 3, cy - 4, 3);
-    g.fillStyle(0x000000);
-    g.fillCircle(cx - 3, cy - 4, 1);
-    g.fillCircle(cx + 3, cy - 4, 1);
-
-    // Big nose
-    g.fillStyle(color * 0.8);
-    g.fillTriangle(cx - 2, cy, cx, cy + 4, cx + 2, cy);
-
-    // Sharp teeth grin
-    g.fillStyle(0xffffff);
-    g.fillRect(cx - 4, cy + 2, 2, 2);
-    g.fillRect(cx + 2, cy + 2, 2, 2);
-
-    // Arms
-    g.fillStyle(color);
-    g.fillRect(cx - 10, cy + 2, 4, 8);
-    g.fillRect(cx + 6, cy + 2, 4, 8);
-
-    // Legs
-    g.fillStyle(color);
-    g.fillRect(cx - 5, cy + 10, 4, 6);
-    g.fillRect(cx + 1, cy + 10, 4, 6);
-
-    g.generateTexture(key, size, size);
-    g.destroy();
-  }
-
-  private createKoboldTexture(key: string, color: number, size: number): void {
-    const g = this.add.graphics();
-    const cx = size / 2;
-    const cy = size / 2;
-
-    // Body (scaled)
-    g.fillStyle(color);
-    g.fillRect(cx - 5, cy, 10, 8);
-
-    // Head (dog-like snout)
-    g.fillStyle(color);
-    g.fillEllipse(cx, cy - 3, 10, 10);
-
-    // Snout
-    g.fillStyle(color * 0.9);
-    g.fillEllipse(cx, cy, 6, 4);
-
-    // Ears (pointed up)
-    g.fillStyle(color);
-    g.fillTriangle(cx - 6, cy - 6, cx - 3, cy - 14, cx - 1, cy - 4);
-    g.fillTriangle(cx + 6, cy - 6, cx + 3, cy - 14, cx + 1, cy - 4);
-
-    // Eyes (red, beady)
-    g.fillStyle(0xff3300);
-    g.fillCircle(cx - 3, cy - 5, 2);
-    g.fillCircle(cx + 3, cy - 5, 2);
-
-    // Nose
-    g.fillStyle(0x333333);
-    g.fillCircle(cx, cy + 1, 2);
-
-    // Tail
-    g.lineStyle(3, color);
-    g.lineBetween(cx, cy + 8, cx + 6, cy + 12);
-
-    // Small claws
-    g.fillStyle(color * 0.7);
-    g.fillRect(cx - 8, cy + 2, 3, 6);
-    g.fillRect(cx + 5, cy + 2, 3, 6);
-
-    // Feet
-    g.fillRect(cx - 4, cy + 8, 3, 4);
-    g.fillRect(cx + 1, cy + 8, 3, 4);
-
-    g.generateTexture(key, size, size);
-    g.destroy();
-  }
-
-  private createLizardmanTexture(key: string, color: number, size: number): void {
-    const g = this.add.graphics();
-    const cx = size / 2;
-    const cy = size / 2;
-
-    // Body (muscular, scaled)
-    g.fillStyle(color);
-    g.fillRect(cx - 7, cy - 2, 14, 14);
-
-    // Scales pattern
-    g.fillStyle(color * 0.8);
-    for (let i = 0; i < 3; i++) {
-      g.fillRect(cx - 5 + i * 4, cy, 3, 3);
-      g.fillRect(cx - 3 + i * 4, cy + 4, 3, 3);
-    }
-
-    // Head (reptilian)
-    g.fillStyle(color);
-    g.fillEllipse(cx, cy - 8, 12, 10);
-
-    // Snout
-    g.fillStyle(color * 0.9);
-    g.fillRect(cx - 3, cy - 6, 6, 4);
-
-    // Crest/spines
-    g.fillStyle(0x1a5a37);
-    g.fillTriangle(cx - 2, cy - 14, cx, cy - 18, cx + 2, cy - 14);
-    g.fillTriangle(cx - 1, cy - 12, cx, cy - 15, cx + 1, cy - 12);
-
-    // Eyes (yellow, slit pupils)
-    g.fillStyle(0xffcc00);
-    g.fillEllipse(cx - 4, cy - 10, 3, 4);
-    g.fillEllipse(cx + 4, cy - 10, 3, 4);
-    g.fillStyle(0x000000);
-    g.fillRect(cx - 4, cy - 11, 1, 3);
-    g.fillRect(cx + 4, cy - 11, 1, 3);
-
-    // Arms (muscular)
-    g.fillStyle(color);
-    g.fillRect(cx - 12, cy, 5, 10);
-    g.fillRect(cx + 7, cy, 5, 10);
-
-    // Claws
-    g.fillStyle(0x333333);
-    g.fillTriangle(cx - 12, cy + 10, cx - 10, cy + 14, cx - 8, cy + 10);
-    g.fillTriangle(cx + 12, cy + 10, cx + 10, cy + 14, cx + 8, cy + 10);
-
-    // Legs
-    g.fillStyle(color);
-    g.fillRect(cx - 6, cy + 12, 5, 6);
-    g.fillRect(cx + 1, cy + 12, 5, 6);
-
-    // Tail
-    g.lineStyle(4, color);
-    g.lineBetween(cx, cy + 12, cx - 8, cy + 16);
-
-    g.generateTexture(key, size, size);
-    g.destroy();
-  }
-
-  private createOrcTexture(key: string, color: number, size: number): void {
-    const g = this.add.graphics();
-    const cx = size / 2;
-    const cy = size / 2;
-
-    // Body (bulky, muscular)
-    g.fillStyle(color);
-    g.fillRect(cx - 10, cy - 2, 20, 18);
-
-    // Chest armor
-    g.fillStyle(0x4a3a2a);
-    g.fillRect(cx - 8, cy, 16, 10);
-    g.fillStyle(0x5a4a3a);
-    g.fillRect(cx - 6, cy + 2, 12, 6);
-
-    // Head (brutish)
-    g.fillStyle(color);
-    g.fillEllipse(cx, cy - 10, 16, 14);
-
-    // Brow ridge
-    g.fillStyle(color * 0.8);
-    g.fillRect(cx - 7, cy - 14, 14, 4);
-
-    // Lower jaw/tusks
-    g.fillStyle(0xfffff0);
-    g.fillTriangle(cx - 5, cy - 4, cx - 4, cy - 8, cx - 3, cy - 4);
-    g.fillTriangle(cx + 5, cy - 4, cx + 4, cy - 8, cx + 3, cy - 4);
-
-    // Eyes (red, angry)
-    g.fillStyle(0xff0000);
-    g.fillCircle(cx - 4, cy - 12, 3);
-    g.fillCircle(cx + 4, cy - 12, 3);
-    g.fillStyle(0x000000);
-    g.fillCircle(cx - 4, cy - 12, 1);
-    g.fillCircle(cx + 4, cy - 12, 1);
-
-    // Nose (flat)
-    g.fillStyle(color * 0.7);
-    g.fillRect(cx - 2, cy - 8, 4, 3);
-
-    // Arms (massive)
-    g.fillStyle(color);
-    g.fillRect(cx - 16, cy - 2, 6, 14);
-    g.fillRect(cx + 10, cy - 2, 6, 14);
-
-    // Wrist bands
-    g.fillStyle(0x3a2a1a);
-    g.fillRect(cx - 16, cy + 8, 6, 3);
-    g.fillRect(cx + 10, cy + 8, 6, 3);
-
-    // Fists
-    g.fillStyle(color);
-    g.fillRect(cx - 17, cy + 11, 7, 5);
-    g.fillRect(cx + 10, cy + 11, 7, 5);
-
-    // Legs
-    g.fillStyle(0x3a3a2a);
-    g.fillRect(cx - 8, cy + 16, 7, 6);
-    g.fillRect(cx + 1, cy + 16, 7, 6);
-
-    g.generateTexture(key, size, size);
-    g.destroy();
-  }
-
-  private createOgreTexture(key: string, color: number, size: number): void {
-    const g = this.add.graphics();
-    const cx = size / 2;
-    const cy = size / 2;
-
-    // Body (massive, round belly)
-    g.fillStyle(color);
-    g.fillEllipse(cx, cy + 5, 36, 30);
-
-    // Belly
-    g.fillStyle(0xa08060);
-    g.fillEllipse(cx, cy + 8, 24, 20);
-
-    // Head (small compared to body)
-    g.fillStyle(color);
-    g.fillEllipse(cx, cy - 18, 22, 18);
-
-    // Single eye or two small eyes
-    g.fillStyle(0xffff00);
-    g.fillCircle(cx - 5, cy - 20, 5);
-    g.fillCircle(cx + 5, cy - 20, 5);
-    g.fillStyle(0x000000);
-    g.fillCircle(cx - 5, cy - 20, 2);
-    g.fillCircle(cx + 5, cy - 20, 2);
-
-    // Brow
-    g.fillStyle(color * 0.7);
-    g.fillRect(cx - 10, cy - 26, 20, 4);
-
-    // Mouth (huge, drooling)
-    g.fillStyle(0x2a1a0a);
-    g.fillRect(cx - 8, cy - 12, 16, 6);
-    // Teeth
-    g.fillStyle(0xffffcc);
-    g.fillTriangle(cx - 6, cy - 12, cx - 4, cy - 8, cx - 2, cy - 12);
-    g.fillTriangle(cx + 6, cy - 12, cx + 4, cy - 8, cx + 2, cy - 12);
-
-    // Ears
-    g.fillStyle(color);
-    g.fillEllipse(cx - 12, cy - 16, 6, 8);
-    g.fillEllipse(cx + 12, cy - 16, 6, 8);
-
-    // Arms (tree trunk thick)
-    g.fillStyle(color);
-    g.fillRect(cx - 24, cy - 5, 10, 24);
-    g.fillRect(cx + 14, cy - 5, 10, 24);
-
-    // Hands/fists
-    g.fillStyle(color * 0.9);
-    g.fillEllipse(cx - 19, cy + 22, 8, 10);
-    g.fillEllipse(cx + 19, cy + 22, 8, 10);
-
-    // Legs (stumpy)
-    g.fillStyle(color);
-    g.fillRect(cx - 12, cy + 20, 10, 12);
-    g.fillRect(cx + 2, cy + 20, 10, 12);
-
-    // Club in hand
-    g.fillStyle(0x5a4020);
-    g.fillRect(cx - 26, cy - 10, 6, 30);
-    g.fillStyle(0x4a3010);
-    g.fillEllipse(cx - 23, cy - 14, 8, 10);
-
-    // Loincloth
-    g.fillStyle(0x4a3a2a);
-    g.fillRect(cx - 10, cy + 18, 20, 6);
-
-    g.generateTexture(key, size, size);
-    g.destroy();
   }
 
   private createProjectileTextures(): void {

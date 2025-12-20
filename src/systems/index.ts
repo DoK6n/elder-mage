@@ -7,4 +7,5 @@ export { CollisionSystem } from './CollisionSystem';
 export { EnemySpawnSystem } from './EnemySpawnSystem';
 export { PickupSystem } from './PickupSystem';
 export { HealthSystem } from './HealthSystem';
+export { HealthPickupSpawnSystem } from './HealthPickupSpawnSystem';
 export { CameraSystem } from './CameraSystem';

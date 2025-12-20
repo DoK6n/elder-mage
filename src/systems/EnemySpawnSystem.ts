@@ -186,6 +186,10 @@ export class EnemySpawnSystem extends System {
     if (this.scene) {
       const enemySprite = this.scene.add.sprite(x, y, enemyConfig.textureKey);
       enemySprite.setDepth(2);
+      // 100x100 이미지를 각 몬스터의 size에 맞게 스케일 조정 (4배 증가)
+      enemySprite.setScale((enemyConfig.size / 100) * 4);
+      // 애니메이션 재생
+      enemySprite.play(enemyConfig.animKey);
       sprite.setSprite(enemySprite);
     }
   }
@@ -198,28 +202,29 @@ export class EnemySpawnSystem extends System {
     radius: number;
     size: number;
     textureKey: string;
+    animKey: string;
   } {
     switch (type) {
       case EnemyType.Slime:
         // 슬라임: 느리고 약함, 초보자 몬스터
-        return { health: 15, damage: 5, speed: 40, experience: 1, radius: 12, size: 24, textureKey: 'enemy_slime' };
+        return { health: 15, damage: 5, speed: 40, experience: 1, radius: 12, size: 24, textureKey: 'enemy_slime', animKey: 'slime-idle' };
       case EnemyType.Goblin:
         // 고블린: 빠르고 약함, 무리로 공격
-        return { health: 20, damage: 8, speed: 70, experience: 2, radius: 14, size: 28, textureKey: 'enemy_goblin' };
+        return { health: 20, damage: 8, speed: 70, experience: 2, radius: 14, size: 28, textureKey: 'enemy_goblin', animKey: 'goblin-idle' };
       case EnemyType.Kobold:
         // 코볼트: 매우 빠름, 약함
-        return { health: 18, damage: 6, speed: 90, experience: 2, radius: 13, size: 26, textureKey: 'enemy_kobold' };
+        return { health: 18, damage: 6, speed: 90, experience: 2, radius: 13, size: 26, textureKey: 'enemy_kobold', animKey: 'kobold-idle' };
       case EnemyType.Lizardman:
         // 리자드맨: 중간 스탯, 밸런스형
-        return { health: 45, damage: 12, speed: 55, experience: 4, radius: 18, size: 36, textureKey: 'enemy_lizardman' };
+        return { health: 45, damage: 12, speed: 55, experience: 4, radius: 18, size: 36, textureKey: 'enemy_lizardman', animKey: 'lizardman-idle' };
       case EnemyType.Orc:
         // 오크: 강력하고 느림
-        return { health: 80, damage: 18, speed: 35, experience: 6, radius: 22, size: 44, textureKey: 'enemy_orc' };
+        return { health: 80, damage: 18, speed: 35, experience: 6, radius: 22, size: 44, textureKey: 'enemy_orc', animKey: 'orc-idle' };
       case EnemyType.Ogre:
         // 오우거: 보스급, 매우 강력
-        return { health: 400, damage: 35, speed: 25, experience: 50, radius: 32, size: 64, textureKey: 'enemy_ogre' };
+        return { health: 400, damage: 35, speed: 25, experience: 50, radius: 32, size: 64, textureKey: 'enemy_ogre', animKey: 'ogre-idle' };
       default:
-        return { health: 15, damage: 5, speed: 40, experience: 1, radius: 12, size: 24, textureKey: 'enemy_slime' };
+        return { health: 15, damage: 5, speed: 40, experience: 1, radius: 12, size: 24, textureKey: 'enemy_slime', animKey: 'slime-idle' };
     }
   }
 

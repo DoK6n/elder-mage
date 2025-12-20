@@ -8,8 +8,11 @@ import {
   PickupType,
   PlayerComponent,
   ProjectileComponent,
+  SlowComponent,
+  FreezeComponent,
   SpriteComponent,
   TransformComponent,
+  VelocityComponent,
 } from '../components';
 import type { ComponentClass } from '../ecs/Component';
 import type { Entity } from '../ecs/Entity';
@@ -97,6 +100,23 @@ export class CollisionSystem extends System {
 
     if (enemyHealth && enemyTransform) {
       const damage = projectile.damage;
+
+      // 얼음 발사체면 정지 효과 적용
+      if (projectileEntity.hasTag('ice_projectile')) {
+        const existingFreeze = enemyEntity.getComponent(FreezeComponent);
+        if (!existingFreeze) {
+          // 3초간 완전히 정지 (데미지 전에 적용)
+          enemyEntity.addComponent(new FreezeComponent(3));
+
+          // 얼음색 틴트 적용
+          const enemySprite = enemyEntity.getComponent(SpriteComponent);
+          if (enemySprite?.sprite && 'setTint' in enemySprite.sprite) {
+            enemySprite.sprite.setTint(0x88ccff); // 파란색 틴트
+          }
+        }
+      }
+
+      // 데미지 적용
       enemyHealth.damage(damage);
 
       // Show damage number
@@ -171,12 +191,29 @@ export class CollisionSystem extends System {
 
     if (!player || !pickup) return;
 
+    const playerTransform = playerEntity.getComponent(TransformComponent);
+
     switch (pickup.type) {
       case PickupType.Experience:
         player.addExperience(pickup.value);
         break;
       case PickupType.Health:
-        playerHealth?.heal(pickup.value);
+        if (playerHealth && playerTransform && this.scene) {
+          const healAmount = playerHealth.max * 0.3; // 30% 회복
+          playerHealth.heal(healAmount);
+
+          // 힐 이펙트 표시
+          const healSprite = this.scene.add.sprite(playerTransform.x, playerTransform.y, 'heal-effect');
+          healSprite.setDepth(15);
+          healSprite.setScale(1.5);
+          healSprite.play('heal-effect');
+          healSprite.once('animationcomplete', () => {
+            healSprite.destroy();
+          });
+
+          // 힐 텍스트 표시
+          this.showDamageNumber(playerTransform.x, playerTransform.y - 30, Math.floor(healAmount), true, false);
+        }
         break;
     }
 

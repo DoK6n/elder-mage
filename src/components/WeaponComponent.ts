@@ -96,19 +96,29 @@ export function getElementColor(element: ElementType): number {
   }
 }
 
+export interface WeaponSlot {
+  type: WeaponType;
+  level: number;
+  currentCooldown: number;
+  stats: WeaponStats;
+  element: ElementType;
+}
+
 export class WeaponComponent extends Component {
-  public level = 1;
-  public currentCooldown = 0;
-  public stats: WeaponStats;
-  public element: ElementType;
+  public weapons: WeaponSlot[] = [];
 
   constructor(
     public type: WeaponType = WeaponType.MagicMissile,
     stats?: Partial<WeaponStats>
   ) {
     super();
-    this.element = getElementFromWeapon(type);
-    this.stats = {
+    // 기본 무기 추가
+    this.addWeapon(type, stats);
+  }
+
+  addWeapon(type: WeaponType, stats?: Partial<WeaponStats>): void {
+    const element = getElementFromWeapon(type);
+    const weaponStats: WeaponStats = {
       damage: 10,
       cooldown: 1,
       projectileSpeed: 300,
@@ -118,30 +128,48 @@ export class WeaponComponent extends Component {
       pierce: 1,
       ...stats,
     };
+
+    this.weapons.push({
+      type,
+      level: 1,
+      currentCooldown: 0,
+      stats: weaponStats,
+      element,
+    });
   }
 
-  canFire(): boolean {
-    return this.currentCooldown <= 0;
+  canFire(weaponIndex: number): boolean {
+    return weaponIndex < this.weapons.length && this.weapons[weaponIndex].currentCooldown <= 0;
   }
 
-  fire(): void {
-    this.currentCooldown = this.stats.cooldown;
-  }
-
-  updateCooldown(dt: number): void {
-    if (this.currentCooldown > 0) {
-      this.currentCooldown -= dt;
+  fire(weaponIndex: number): void {
+    if (weaponIndex < this.weapons.length) {
+      this.weapons[weaponIndex].currentCooldown = this.weapons[weaponIndex].stats.cooldown;
     }
   }
 
-  upgrade(): void {
-    this.level++;
-    this.stats.damage *= 1.2;
-    this.stats.cooldown *= 0.95;
-    this.stats.area *= 1.1;
+  updateCooldown(dt: number): void {
+    for (const weapon of this.weapons) {
+      if (weapon.currentCooldown > 0) {
+        weapon.currentCooldown -= dt;
+      }
+    }
   }
 
-  getEffectiveDamage(): number {
-    return Math.floor(this.stats.damage);
+  upgrade(weaponIndex: number): void {
+    if (weaponIndex < this.weapons.length) {
+      const weapon = this.weapons[weaponIndex];
+      weapon.level++;
+      weapon.stats.damage *= 1.2;
+      weapon.stats.cooldown *= 0.95;
+      weapon.stats.area *= 1.1;
+    }
+  }
+
+  getEffectiveDamage(weaponIndex: number): number {
+    if (weaponIndex < this.weapons.length) {
+      return Math.floor(this.weapons[weaponIndex].stats.damage);
+    }
+    return 0;
   }
 }

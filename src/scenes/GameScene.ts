@@ -17,6 +17,7 @@ import {
   EnemyAISystem,
   EnemySpawnSystem,
   HealthSystem,
+  HealthPickupSpawnSystem,
   InputSystem,
   MovementSystem,
   PickupSystem,
@@ -80,6 +81,9 @@ export class GameScene extends Phaser.Scene {
     this.pickupSystem = new PickupSystem();
     this.pickupSystem.setScene(this);
 
+    const healthPickupSpawnSystem = new HealthPickupSpawnSystem();
+    healthPickupSpawnSystem.setScene(this);
+
     this.cameraSystem = new CameraSystem();
 
     this.collisionSystem = new CollisionSystem();
@@ -92,6 +96,7 @@ export class GameScene extends Phaser.Scene {
     this.world.addSystem(new EnemyAISystem());
     this.world.addSystem(this.collisionSystem);
     this.world.addSystem(this.enemySpawnSystem);
+    this.world.addSystem(healthPickupSpawnSystem);
     this.world.addSystem(this.pickupSystem);
     this.world.addSystem(new HealthSystem());
     this.world.addSystem(this.cameraSystem);
@@ -208,19 +213,19 @@ export class GameScene extends Phaser.Scene {
 
     if (existingWeapon && existingWeapon.type === weaponType) {
       // Upgrade existing weapon
-      existingWeapon.upgrade();
+      existingWeapon.upgrade(0);
     } else if (level === 1) {
       // Add new weapon - for now just upgrade current weapon stats
       // In a full implementation, player would have multiple weapons
       const def = WEAPON_DEFINITIONS[weaponType];
-      if (existingWeapon) {
-        existingWeapon.stats.damage += def.baseStats.damage * 0.5;
-        existingWeapon.stats.projectileCount += 1;
-        existingWeapon.stats.cooldown *= 0.9;
+      if (existingWeapon && existingWeapon.weapons.length > 0) {
+        existingWeapon.weapons[0].stats.damage += def.baseStats.damage * 0.5;
+        existingWeapon.weapons[0].stats.projectileCount += 1;
+        existingWeapon.weapons[0].stats.cooldown *= 0.9;
       }
     } else if (existingWeapon) {
       // Upgrade weapon
-      existingWeapon.upgrade();
+      existingWeapon.upgrade(0);
     }
   }
 
@@ -262,8 +267,10 @@ export class GameScene extends Phaser.Scene {
       const players = this.world.getEntitiesWithComponents(WeaponComponent as ComponentClass<WeaponComponent>);
       for (const p of players) {
         const weapon = p.getComponent(WeaponComponent as ComponentClass<WeaponComponent>)! as WeaponComponent;
-        if (weapon) {
-          weapon.stats.cooldown *= 1 - effect.cooldownReduction;
+        if (weapon && weapon.weapons.length > 0) {
+          for (const w of weapon.weapons) {
+            w.stats.cooldown *= 1 - effect.cooldownReduction;
+          }
         }
       }
     }
@@ -272,8 +279,10 @@ export class GameScene extends Phaser.Scene {
       const players = this.world.getEntitiesWithComponents(WeaponComponent as ComponentClass<WeaponComponent>);
       for (const p of players) {
         const weapon = p.getComponent(WeaponComponent as ComponentClass<WeaponComponent>)! as WeaponComponent;
-        if (weapon) {
-          weapon.stats.damage *= 1 + effect.damageBonus;
+        if (weapon && weapon.weapons.length > 0) {
+          for (const w of weapon.weapons) {
+            w.stats.damage *= 1 + effect.damageBonus;
+          }
         }
       }
     }
@@ -282,8 +291,10 @@ export class GameScene extends Phaser.Scene {
       const players = this.world.getEntitiesWithComponents(WeaponComponent as ComponentClass<WeaponComponent>);
       for (const p of players) {
         const weapon = p.getComponent(WeaponComponent as ComponentClass<WeaponComponent>)! as WeaponComponent;
-        if (weapon) {
-          weapon.stats.area *= 1 + effect.areaBonus;
+        if (weapon && weapon.weapons.length > 0) {
+          for (const w of weapon.weapons) {
+            w.stats.area *= 1 + effect.areaBonus;
+          }
         }
       }
     }

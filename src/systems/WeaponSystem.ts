@@ -9,6 +9,7 @@ import {
   TransformComponent,
   VelocityComponent,
   WeaponComponent,
+  type WeaponSlot,
   WeaponType,
   ElementType,
   getElementFromWeapon,
@@ -42,58 +43,74 @@ export class WeaponSystem extends System {
 
       weapon.updateCooldown(dt);
 
-      if (weapon.canFire()) {
-        this.fireWeapon(entity, transform, weapon);
-        weapon.fire();
+      // 모든 무기를 순회하며 발사 가능한 무기 발사
+      for (let i = 0; i < weapon.weapons.length; i++) {
+        if (weapon.canFire(i)) {
+          this.fireWeapon(entity, transform, weapon, i);
+          weapon.fire(i);
+        }
       }
     }
   }
 
-  private fireWeapon(owner: Entity, transform: TransformComponent, weapon: WeaponComponent): void {
-    const weaponDef = WEAPON_DEFINITIONS[weapon.type];
+  private fireWeapon(owner: Entity, transform: TransformComponent, weapon: WeaponComponent, weaponIndex: number): void {
+    const weaponSlot = weapon.weapons[weaponIndex];
+    const weaponDef = WEAPON_DEFINITIONS[weaponSlot.type];
     const textureKey = weaponDef?.textureKey || 'projectile';
 
     // 특수 무기 처리
-    switch (weapon.type) {
+    switch (weaponSlot.type) {
       case WeaponType.WaterShield:
       case WeaponType.Earthquake:
-        this.createAuraAttack(owner, transform, weapon, textureKey);
+        this.createAuraAttack(owner, transform, weaponSlot, textureKey);
         return;
 
       case WeaponType.FireWall:
-        this.createFireWall(owner, transform, weapon);
+        this.createFireWall(owner, transform, weaponSlot);
         return;
 
       case WeaponType.SummonGolem:
-        this.summonGolem(owner, transform, weapon);
+        this.summonGolem(owner, transform, weaponSlot);
         return;
 
       case WeaponType.Blizzard:
-        this.createBlizzard(owner, transform, weapon);
+        this.createBlizzard(owner, transform, weaponSlot);
         return;
 
       case WeaponType.ThunderStorm:
-        this.createThunderStorm(owner, transform, weapon);
+        this.createThunderStorm(owner, transform, weaponSlot);
         return;
 
       case WeaponType.Tornado:
-        this.createTornado(owner, transform, weapon);
+        this.createTornado(owner, transform, weaponSlot);
         return;
 
       case WeaponType.RockSpike:
-        this.createRockSpike(owner, transform, weapon);
+        this.createRockSpike(owner, transform, weaponSlot);
         return;
 
       case WeaponType.AirSlash:
-        this.createCircularAttack(owner, transform, weapon, textureKey);
+        this.createCircularAttack(owner, transform, weaponSlot, textureKey);
         return;
 
       case WeaponType.ChainLightning:
-        this.createChainLightning(owner, transform, weapon);
+        this.createChainLightning(owner, transform, weaponSlot);
+        return;
+
+      case WeaponType.IceBolt:
+        this.createIceBolt(owner, transform, weaponSlot);
+        return;
+
+      case WeaponType.Fireball:
+        this.createFireball(owner, transform, weaponSlot);
+        return;
+
+      case WeaponType.Meteor:
+        this.createMeteorStrike(owner, transform, weaponSlot);
         return;
 
       default:
-        this.createStandardProjectile(owner, transform, weapon, textureKey);
+        this.createStandardProjectile(owner, transform, weaponSlot, textureKey);
     }
   }
 
@@ -101,17 +118,17 @@ export class WeaponSystem extends System {
   private createStandardProjectile(
     owner: Entity,
     transform: TransformComponent,
-    weapon: WeaponComponent,
+    weaponSlot: WeaponSlot,
     textureKey: string
   ): void {
     const nearestEnemy = this.findNearestEnemy(transform);
 
-    for (let i = 0; i < weapon.stats.projectileCount; i++) {
+    for (let i = 0; i < weaponSlot.stats.projectileCount; i++) {
       const projectile = this.world.createEntity();
       projectile.addTag('projectile');
       projectile.addTag('player_projectile');
 
-      const angle = this.calculateProjectileAngle(transform, nearestEnemy, i, weapon);
+      const angle = this.calculateProjectileAngle(transform, nearestEnemy, i, weaponSlot);
       const dirX = Math.cos(angle);
       const dirY = Math.sin(angle);
 
@@ -119,25 +136,25 @@ export class WeaponSystem extends System {
 
       projectile.addComponent(
         new VelocityComponent(
-          dirX * weapon.stats.projectileSpeed,
-          dirY * weapon.stats.projectileSpeed,
-          weapon.stats.projectileSpeed
+          dirX * weaponSlot.stats.projectileSpeed,
+          dirY * weaponSlot.stats.projectileSpeed,
+          weaponSlot.stats.projectileSpeed
         )
       );
 
       projectile.addComponent(
         new ProjectileComponent(
-          weapon.getEffectiveDamage(),
-          weapon.stats.projectileSpeed,
-          weapon.stats.pierce,
-          weapon.stats.duration,
+          Math.floor(weaponSlot.stats.damage),
+          weaponSlot.stats.projectileSpeed,
+          weaponSlot.stats.pierce,
+          weaponSlot.stats.duration,
           owner.id
         )
       );
 
       projectile.addComponent(
         new ColliderComponent(
-          8 * weapon.stats.area,
+          8 * weaponSlot.stats.area,
           ColliderLayer.PlayerProjectile,
           ColliderLayer.Enemy
         )
@@ -149,12 +166,12 @@ export class WeaponSystem extends System {
       if (this.scene) {
         const projectileSprite = this.scene.add.sprite(transform.x, transform.y, textureKey);
         projectileSprite.setDepth(5);
-        projectileSprite.setScale(weapon.stats.area);
+        projectileSprite.setScale(weaponSlot.stats.area);
         projectileSprite.setRotation(angle);
         sprite.setSprite(projectileSprite);
 
         // 속성별 파티클 효과
-        this.addElementalTrail(projectileSprite, weapon.element);
+        this.addElementalTrail(projectileSprite, weaponSlot.element);
       }
     }
   }
@@ -163,7 +180,7 @@ export class WeaponSystem extends System {
   private createAuraAttack(
     owner: Entity,
     transform: TransformComponent,
-    weapon: WeaponComponent,
+    weaponSlot: WeaponSlot,
     textureKey: string
   ): void {
     const projectile = this.world.createEntity();
@@ -175,15 +192,15 @@ export class WeaponSystem extends System {
 
     projectile.addComponent(
       new ProjectileComponent(
-        weapon.getEffectiveDamage(),
+        Math.floor(weaponSlot.stats.damage),
         0,
-        weapon.stats.pierce,
-        weapon.stats.duration,
+        weaponSlot.stats.pierce,
+        weaponSlot.stats.duration,
         owner.id
       )
     );
 
-    const radius = 50 * weapon.stats.area;
+    const radius = 50 * weaponSlot.stats.area;
     projectile.addComponent(
       new ColliderComponent(radius, ColliderLayer.PlayerProjectile, ColliderLayer.Enemy)
     );
@@ -192,7 +209,7 @@ export class WeaponSystem extends System {
     projectile.addComponent(sprite);
 
     if (this.scene) {
-      const color = getElementColor(weapon.element);
+      const color = getElementColor(weaponSlot.element);
 
       // 광역 이펙트
       const circle = this.scene.add.circle(transform.x, transform.y, radius * 0.5, color, 0.3);
@@ -204,7 +221,7 @@ export class WeaponSystem extends System {
         scaleX: 1.5,
         scaleY: 1.5,
         alpha: 0,
-        duration: weapon.stats.duration * 1000,
+        duration: weaponSlot.stats.duration * 1000,
         onComplete: () => circle.destroy(),
       });
 
@@ -222,7 +239,7 @@ export class WeaponSystem extends System {
           x: transform.x + Math.cos(angle) * radius,
           y: transform.y + Math.sin(angle) * radius,
           alpha: 0,
-          duration: weapon.stats.duration * 800,
+          duration: weaponSlot.stats.duration * 800,
           onComplete: () => particle.destroy(),
         });
       }
@@ -233,7 +250,7 @@ export class WeaponSystem extends System {
   private createFireWall(
     owner: Entity,
     transform: TransformComponent,
-    weapon: WeaponComponent
+    weaponSlot: WeaponSlot
   ): void {
     const nearestEnemy = this.findNearestEnemy(transform);
     let angle = Math.random() * Math.PI * 2;
@@ -256,15 +273,15 @@ export class WeaponSystem extends System {
 
     projectile.addComponent(
       new ProjectileComponent(
-        weapon.getEffectiveDamage(),
+        Math.floor(weaponSlot.stats.damage),
         0,
-        weapon.stats.pierce,
-        weapon.stats.duration,
+        weaponSlot.stats.pierce,
+        weaponSlot.stats.duration,
         owner.id
       )
     );
 
-    const radius = 40 * weapon.stats.area;
+    const radius = 40 * weaponSlot.stats.area;
     projectile.addComponent(
       new ColliderComponent(radius, ColliderLayer.PlayerProjectile, ColliderLayer.Enemy)
     );
@@ -273,20 +290,20 @@ export class WeaponSystem extends System {
       // 불벽 이펙트
       const firewall = this.scene.add.sprite(wallX, wallY, 'proj_firewall');
       firewall.setDepth(4);
-      firewall.setScale(weapon.stats.area);
+      firewall.setScale(weaponSlot.stats.area);
       firewall.setRotation(angle);
 
       // 불꽃 애니메이션
       this.scene.tweens.add({
         targets: firewall,
-        scaleY: weapon.stats.area * 1.2,
+        scaleY: weaponSlot.stats.area * 1.2,
         duration: 200,
         yoyo: true,
-        repeat: Math.floor(weapon.stats.duration * 2.5),
+        repeat: Math.floor(weaponSlot.stats.duration * 2.5),
       });
 
       // 소멸
-      this.scene.time.delayedCall(weapon.stats.duration * 1000, () => {
+      this.scene.time.delayedCall(weaponSlot.stats.duration * 1000, () => {
         this.scene?.tweens.add({
           targets: firewall,
           alpha: 0,
@@ -301,7 +318,7 @@ export class WeaponSystem extends System {
   private summonGolem(
     owner: Entity,
     transform: TransformComponent,
-    weapon: WeaponComponent
+    weaponSlot: WeaponSlot
   ): void {
     const golem = this.world.createEntity();
     golem.addTag('projectile');
@@ -315,19 +332,19 @@ export class WeaponSystem extends System {
     golem.addComponent(new TransformComponent(spawnX, spawnY));
 
     // 골렘은 적을 찾아 이동
-    golem.addComponent(new VelocityComponent(0, 0, weapon.stats.projectileSpeed));
+    golem.addComponent(new VelocityComponent(0, 0, weaponSlot.stats.projectileSpeed));
 
     golem.addComponent(
       new ProjectileComponent(
-        weapon.getEffectiveDamage(),
-        weapon.stats.projectileSpeed,
-        weapon.stats.pierce,
-        weapon.stats.duration,
+        Math.floor(weaponSlot.stats.damage),
+        weaponSlot.stats.projectileSpeed,
+        weaponSlot.stats.pierce,
+        weaponSlot.stats.duration,
         owner.id
       )
     );
 
-    const radius = 24 * weapon.stats.area;
+    const radius = 24 * weaponSlot.stats.area;
     golem.addComponent(
       new ColliderComponent(radius, ColliderLayer.PlayerProjectile, ColliderLayer.Enemy)
     );
@@ -352,7 +369,7 @@ export class WeaponSystem extends System {
       // 골렘 스프라이트
       const golemSprite = this.scene.add.sprite(spawnX, spawnY, 'proj_golem');
       golemSprite.setDepth(6);
-      golemSprite.setScale(weapon.stats.area);
+      golemSprite.setScale(weaponSlot.stats.area);
       sprite.setSprite(golemSprite);
 
       // 소환 애니메이션
@@ -362,8 +379,8 @@ export class WeaponSystem extends System {
       this.scene.tweens.add({
         targets: golemSprite,
         alpha: 1,
-        scaleX: weapon.stats.area,
-        scaleY: weapon.stats.area,
+        scaleX: weaponSlot.stats.area,
+        scaleY: weaponSlot.stats.area,
         duration: 500,
         ease: 'Back.easeOut',
       });
@@ -374,11 +391,11 @@ export class WeaponSystem extends System {
   private createBlizzard(
     owner: Entity,
     transform: TransformComponent,
-    weapon: WeaponComponent
+    weaponSlot: WeaponSlot
   ): void {
-    const radius = 100 * weapon.stats.area;
+    const radius = 100 * weaponSlot.stats.area;
 
-    for (let i = 0; i < weapon.stats.projectileCount; i++) {
+    for (let i = 0; i < weaponSlot.stats.projectileCount; i++) {
       this.scene?.time.delayedCall(i * 200, () => {
         const angle = Math.random() * Math.PI * 2;
         const dist = Math.random() * radius;
@@ -394,7 +411,7 @@ export class WeaponSystem extends System {
 
         projectile.addComponent(
           new ProjectileComponent(
-            weapon.getEffectiveDamage(),
+            Math.floor(weaponSlot.stats.damage),
             0,
             1,
             0.5,
@@ -403,13 +420,13 @@ export class WeaponSystem extends System {
         );
 
         projectile.addComponent(
-          new ColliderComponent(15 * weapon.stats.area, ColliderLayer.PlayerProjectile, ColliderLayer.Enemy)
+          new ColliderComponent(15 * weaponSlot.stats.area, ColliderLayer.PlayerProjectile, ColliderLayer.Enemy)
         );
 
         if (this.scene) {
           const snowflake = this.scene.add.sprite(snowX, snowY - 50, 'proj_blizzard');
           snowflake.setDepth(7);
-          snowflake.setScale(weapon.stats.area);
+          snowflake.setScale(weaponSlot.stats.area);
 
           this.scene.tweens.add({
             targets: snowflake,
@@ -428,11 +445,11 @@ export class WeaponSystem extends System {
   private createThunderStorm(
     owner: Entity,
     transform: TransformComponent,
-    weapon: WeaponComponent
+    weaponSlot: WeaponSlot
   ): void {
-    const radius = 150 * weapon.stats.area;
+    const radius = 150 * weaponSlot.stats.area;
 
-    for (let i = 0; i < weapon.stats.projectileCount; i++) {
+    for (let i = 0; i < weaponSlot.stats.projectileCount; i++) {
       this.scene?.time.delayedCall(i * 300 + Math.random() * 200, () => {
         const angle = Math.random() * Math.PI * 2;
         const dist = Math.random() * radius;
@@ -448,23 +465,23 @@ export class WeaponSystem extends System {
 
         projectile.addComponent(
           new ProjectileComponent(
-            weapon.getEffectiveDamage(),
+            Math.floor(weaponSlot.stats.damage),
             0,
-            weapon.stats.pierce,
+            weaponSlot.stats.pierce,
             0.3,
             owner.id
           )
         );
 
         projectile.addComponent(
-          new ColliderComponent(20 * weapon.stats.area, ColliderLayer.PlayerProjectile, ColliderLayer.Enemy)
+          new ColliderComponent(20 * weaponSlot.stats.area, ColliderLayer.PlayerProjectile, ColliderLayer.Enemy)
         );
 
         if (this.scene) {
           // 번개 이펙트
           const lightning = this.scene.add.sprite(strikeX, strikeY - 100, 'proj_thunder');
           lightning.setDepth(8);
-          lightning.setScaleY(3);
+          lightning.setScale(1, 3);
           lightning.setAlpha(0);
 
           this.scene.tweens.add({
@@ -497,7 +514,7 @@ export class WeaponSystem extends System {
   private createTornado(
     owner: Entity,
     transform: TransformComponent,
-    weapon: WeaponComponent
+    weaponSlot: WeaponSlot
   ): void {
     const nearestEnemy = this.findNearestEnemy(transform);
 
@@ -513,27 +530,27 @@ export class WeaponSystem extends System {
     if (nearestEnemy) {
       const enemyTransform = nearestEnemy.getComponent(TransformComponent)!;
       const angle = Math.atan2(enemyTransform.y - transform.y, enemyTransform.x - transform.x);
-      vx = Math.cos(angle) * weapon.stats.projectileSpeed;
-      vy = Math.sin(angle) * weapon.stats.projectileSpeed;
+      vx = Math.cos(angle) * weaponSlot.stats.projectileSpeed;
+      vy = Math.sin(angle) * weaponSlot.stats.projectileSpeed;
     } else {
       const angle = Math.random() * Math.PI * 2;
-      vx = Math.cos(angle) * weapon.stats.projectileSpeed;
-      vy = Math.sin(angle) * weapon.stats.projectileSpeed;
+      vx = Math.cos(angle) * weaponSlot.stats.projectileSpeed;
+      vy = Math.sin(angle) * weaponSlot.stats.projectileSpeed;
     }
 
-    projectile.addComponent(new VelocityComponent(vx, vy, weapon.stats.projectileSpeed));
+    projectile.addComponent(new VelocityComponent(vx, vy, weaponSlot.stats.projectileSpeed));
 
     projectile.addComponent(
       new ProjectileComponent(
-        weapon.getEffectiveDamage(),
-        weapon.stats.projectileSpeed,
-        weapon.stats.pierce,
-        weapon.stats.duration,
+        Math.floor(weaponSlot.stats.damage),
+        weaponSlot.stats.projectileSpeed,
+        weaponSlot.stats.pierce,
+        weaponSlot.stats.duration,
         owner.id
       )
     );
 
-    const radius = 35 * weapon.stats.area;
+    const radius = 35 * weaponSlot.stats.area;
     projectile.addComponent(
       new ColliderComponent(radius, ColliderLayer.PlayerProjectile, ColliderLayer.Enemy)
     );
@@ -544,14 +561,14 @@ export class WeaponSystem extends System {
     if (this.scene) {
       const tornado = this.scene.add.sprite(transform.x, transform.y, 'proj_tornado');
       tornado.setDepth(5);
-      tornado.setScale(weapon.stats.area);
+      tornado.setScale(weaponSlot.stats.area);
       sprite.setSprite(tornado);
 
       // 회전 애니메이션
       this.scene.tweens.add({
         targets: tornado,
         rotation: Math.PI * 8,
-        duration: weapon.stats.duration * 1000,
+        duration: weaponSlot.stats.duration * 1000,
         repeat: 0,
       });
     }
@@ -561,7 +578,7 @@ export class WeaponSystem extends System {
   private createRockSpike(
     owner: Entity,
     transform: TransformComponent,
-    weapon: WeaponComponent
+    weaponSlot: WeaponSlot
   ): void {
     const nearestEnemy = this.findNearestEnemy(transform);
     let targetX = transform.x + (Math.random() - 0.5) * 100;
@@ -582,15 +599,15 @@ export class WeaponSystem extends System {
 
     projectile.addComponent(
       new ProjectileComponent(
-        weapon.getEffectiveDamage(),
+        Math.floor(weaponSlot.stats.damage),
         0,
-        weapon.stats.pierce,
-        weapon.stats.duration,
+        weaponSlot.stats.pierce,
+        weaponSlot.stats.duration,
         owner.id
       )
     );
 
-    const radius = 25 * weapon.stats.area;
+    const radius = 25 * weaponSlot.stats.area;
     projectile.addComponent(
       new ColliderComponent(radius, ColliderLayer.PlayerProjectile, ColliderLayer.Enemy)
     );
@@ -605,15 +622,15 @@ export class WeaponSystem extends System {
       // 솟아오르는 애니메이션
       this.scene.tweens.add({
         targets: crack,
-        scaleX: weapon.stats.area * 1.5,
-        scaleY: weapon.stats.area * 1.5,
+        scaleX: weaponSlot.stats.area * 1.5,
+        scaleY: weaponSlot.stats.area * 1.5,
         duration: 150,
         ease: 'Back.easeOut',
         onComplete: () => {
           this.scene?.tweens.add({
             targets: crack,
             alpha: 0,
-            scaleY: weapon.stats.area * 0.5,
+            scaleY: weaponSlot.stats.area * 0.5,
             duration: 300,
             delay: 200,
             onComplete: () => crack.destroy(),
@@ -647,7 +664,7 @@ export class WeaponSystem extends System {
   private createChainLightning(
     owner: Entity,
     transform: TransformComponent,
-    weapon: WeaponComponent
+    weaponSlot: WeaponSlot
   ): void {
     const enemies = this.world.getEntitiesWithComponents(TransformComponent, EnemyComponent);
     if (enemies.length === 0) return;
@@ -657,7 +674,7 @@ export class WeaponSystem extends System {
     if (!currentTarget) return;
 
     const hitEnemies = new Set<number>();
-    let chainCount = weapon.stats.pierce;
+    let chainCount = weaponSlot.stats.pierce;
     let lastX = transform.x;
     let lastY = transform.y;
 
@@ -679,7 +696,7 @@ export class WeaponSystem extends System {
 
         projectile.addComponent(
           new ProjectileComponent(
-            weapon.getEffectiveDamage(),
+            Math.floor(weaponSlot.stats.damage),
             0,
             1,
             0.1,
@@ -701,7 +718,7 @@ export class WeaponSystem extends System {
           // 전기 스파크
           const spark = this.scene.add.sprite(targetX, targetY, 'proj_chain');
           spark.setDepth(9);
-          spark.setScale(weapon.stats.area * 0.8);
+          spark.setScale(weaponSlot.stats.area * 0.8);
 
           this.scene.tweens.add({
             targets: [line, spark],
@@ -747,11 +764,11 @@ export class WeaponSystem extends System {
   private createCircularAttack(
     owner: Entity,
     transform: TransformComponent,
-    weapon: WeaponComponent,
+    weaponSlot: WeaponSlot,
     textureKey: string
   ): void {
-    for (let i = 0; i < weapon.stats.projectileCount; i++) {
-      const angle = (i / weapon.stats.projectileCount) * Math.PI * 2;
+    for (let i = 0; i < weaponSlot.stats.projectileCount; i++) {
+      const angle = (i / weaponSlot.stats.projectileCount) * Math.PI * 2;
       const dirX = Math.cos(angle);
       const dirY = Math.sin(angle);
 
@@ -763,25 +780,25 @@ export class WeaponSystem extends System {
 
       projectile.addComponent(
         new VelocityComponent(
-          dirX * weapon.stats.projectileSpeed,
-          dirY * weapon.stats.projectileSpeed,
-          weapon.stats.projectileSpeed
+          dirX * weaponSlot.stats.projectileSpeed,
+          dirY * weaponSlot.stats.projectileSpeed,
+          weaponSlot.stats.projectileSpeed
         )
       );
 
       projectile.addComponent(
         new ProjectileComponent(
-          weapon.getEffectiveDamage(),
-          weapon.stats.projectileSpeed,
-          weapon.stats.pierce,
-          weapon.stats.duration,
+          Math.floor(weaponSlot.stats.damage),
+          weaponSlot.stats.projectileSpeed,
+          weaponSlot.stats.pierce,
+          weaponSlot.stats.duration,
           owner.id
         )
       );
 
       projectile.addComponent(
         new ColliderComponent(
-          8 * weapon.stats.area,
+          8 * weaponSlot.stats.area,
           ColliderLayer.PlayerProjectile,
           ColliderLayer.Enemy
         )
@@ -793,7 +810,7 @@ export class WeaponSystem extends System {
       if (this.scene) {
         const projectileSprite = this.scene.add.sprite(transform.x, transform.y, textureKey);
         projectileSprite.setDepth(5);
-        projectileSprite.setScale(weapon.stats.area);
+        projectileSprite.setScale(weaponSlot.stats.area);
         projectileSprite.setRotation(angle);
         sprite.setSprite(projectileSprite);
       }
@@ -854,7 +871,7 @@ export class WeaponSystem extends System {
     playerTransform: TransformComponent,
     nearestEnemy: Entity | null,
     index: number,
-    weapon: WeaponComponent
+    weaponSlot: WeaponSlot
   ): number {
     let baseAngle = 0;
 
@@ -868,7 +885,249 @@ export class WeaponSystem extends System {
       baseAngle = Math.random() * Math.PI * 2;
     }
 
-    const spreadAngle = (Math.PI / 6) * (index - (weapon.stats.projectileCount - 1) / 2);
+    const spreadAngle = (Math.PI / 6) * (index - (weaponSlot.stats.projectileCount - 1) / 2);
     return baseAngle + spreadAngle;
+  }
+
+  // 얼음 공격 (주변에 생성, 정지 효과)
+  private createIceBolt(owner: Entity, transform: TransformComponent, weaponSlot: WeaponSlot): void {
+    if (!this.scene) return;
+
+    // 캐릭터 주변 8방향에 얼음 생성
+    const directions = 8;
+    const radius = 80; // 캐릭터로부터의 거리
+
+    for (let i = 0; i < directions; i++) {
+      const angle = (i / directions) * Math.PI * 2;
+      const iceX = transform.x + Math.cos(angle) * radius;
+      const iceY = transform.y + Math.sin(angle) * radius;
+
+      // 약간의 딜레이를 두고 순차적으로 생성
+      this.scene.time.delayedCall(i * 50, () => {
+        const ice = this.world.createEntity();
+        ice.addTag('projectile');
+        ice.addTag('player_projectile');
+        ice.addTag('ice_projectile'); // 얼음 태그 추가
+
+        ice.addComponent(new TransformComponent(iceX, iceY));
+        ice.addComponent(new VelocityComponent(0, 0, 0)); // 정지 상태
+
+        ice.addComponent(
+          new ProjectileComponent(
+            Math.floor(weaponSlot.stats.damage),
+            0,
+            999, // 범위 내 모든 적 타격
+            1.0, // 1초 동안 유지
+            owner.id
+          )
+        );
+
+        ice.addComponent(
+          new ColliderComponent(
+            60 * weaponSlot.stats.area, // 충돌 범위
+            ColliderLayer.PlayerProjectile,
+            ColliderLayer.Enemy
+          )
+        );
+
+        const sprite = new SpriteComponent('ice-effect', 120, 120, 0xffffff, 5);
+        ice.addComponent(sprite);
+
+        // 얼음 이펙트 스프라이트 생성
+        const iceSprite = this.scene!.add.sprite(iceX, iceY, 'ice-effect');
+        iceSprite.setDepth(5);
+        iceSprite.setScale(1.2); // 2배 증가
+        iceSprite.setAlpha(0);
+        sprite.setSprite(iceSprite);
+
+        // 갑자기 나타나는 효과
+        this.scene!.tweens.add({
+          targets: iceSprite,
+          alpha: 1,
+          scaleX: 1.4,
+          scaleY: 1.4,
+          duration: 100,
+          ease: 'Back.easeOut',
+          onComplete: () => {
+            iceSprite.play('ice-attack'); // 10프레임 애니메이션 재생
+
+            // 애니메이션 종료 후 페이드아웃
+            iceSprite.once('animationcomplete', () => {
+              this.scene?.tweens.add({
+                targets: iceSprite,
+                alpha: 0,
+                duration: 200,
+              });
+            });
+          },
+        });
+      });
+    }
+  }
+
+  // 화염구 (관통 4회)
+  private createFireball(owner: Entity, transform: TransformComponent, weaponSlot: WeaponSlot): void {
+    const nearestEnemy = this.findNearestEnemy(transform);
+
+    const projectile = this.world.createEntity();
+    projectile.addTag('projectile');
+    projectile.addTag('player_projectile');
+
+    let angle = 0;
+    if (nearestEnemy) {
+      const enemyTransform = nearestEnemy.getComponent(TransformComponent)!;
+      angle = Math.atan2(
+        enemyTransform.y - transform.y,
+        enemyTransform.x - transform.x
+      );
+    } else {
+      angle = Math.random() * Math.PI * 2;
+    }
+
+    const dirX = Math.cos(angle);
+    const dirY = Math.sin(angle);
+
+    projectile.addComponent(new TransformComponent(transform.x, transform.y));
+    projectile.addComponent(
+      new VelocityComponent(
+        dirX * weaponSlot.stats.projectileSpeed,
+        dirY * weaponSlot.stats.projectileSpeed,
+        weaponSlot.stats.projectileSpeed
+      )
+    );
+
+    projectile.addComponent(
+      new ProjectileComponent(
+        Math.floor(weaponSlot.stats.damage),
+        weaponSlot.stats.projectileSpeed,
+        weaponSlot.stats.pierce,
+        weaponSlot.stats.duration,
+        owner.id
+      )
+    );
+
+    projectile.addComponent(
+      new ColliderComponent(
+        10 * weaponSlot.stats.area,
+        ColliderLayer.PlayerProjectile,
+        ColliderLayer.Enemy
+      )
+    );
+
+    const sprite = new SpriteComponent('fire-effect', 20, 20, 0xffffff, 5);
+    projectile.addComponent(sprite);
+
+    if (this.scene) {
+      const projSprite = this.scene.add.sprite(transform.x, transform.y, 'fire-effect');
+      projSprite.setDepth(5);
+      projSprite.setScale(1.0); // 2배 증가 (0.5 → 1.0)
+      projSprite.play('fire-attack');
+      sprite.setSprite(projSprite);
+    }
+  }
+
+  // 마그마/메테오 낙하 (광역 데미지)
+  private createMeteorStrike(owner: Entity, transform: TransformComponent, weaponSlot: WeaponSlot): void {
+    if (!this.scene) return;
+
+    // 화면 범위 내 랜덤 위치 선택
+    const camera = this.scene.cameras.main;
+    const targetX = transform.x + (Math.random() - 0.5) * camera.width * 0.8;
+    const targetY = transform.y + (Math.random() - 0.5) * camera.height * 0.8;
+
+    // 경고 표시 (타겟 위치에 원형 표시)
+    const warningCircle = this.scene.add.circle(targetX, targetY, 80 * weaponSlot.stats.area, 0xff0000, 0.3);
+    warningCircle.setDepth(5);
+    warningCircle.setStrokeStyle(3, 0xff0000, 0.8);
+
+    this.scene.tweens.add({
+      targets: warningCircle,
+      alpha: 0,
+      duration: 800,
+      onComplete: () => warningCircle.destroy(),
+    });
+
+    // 메테오 낙하 이펙트 (fire-effect 사용)
+    const meteor = this.scene.add.sprite(targetX, targetY - 400, 'fire-effect');
+    meteor.setDepth(8);
+    meteor.setScale(3);
+    meteor.setAlpha(0.8);
+    meteor.setRotation(Math.PI); // 아래로 향하게 회전
+    meteor.play('fire-attack');
+
+    // 낙하 애니메이션
+    this.scene.tweens.add({
+      targets: meteor,
+      y: targetY,
+      alpha: 1,
+      scaleX: 4,
+      scaleY: 4,
+      rotation: Math.PI + Math.PI * 2, // 회전하면서 낙하
+      duration: 800,
+      ease: 'Cubic.easeIn',
+      onComplete: () => {
+        // 광역 데미지 생성
+        const aoe = this.world.createEntity();
+        aoe.addTag('projectile');
+        aoe.addTag('player_projectile');
+
+        aoe.addComponent(new TransformComponent(targetX, targetY));
+        aoe.addComponent(new VelocityComponent(0, 0, 0));
+
+        aoe.addComponent(
+          new ProjectileComponent(
+            Math.floor(weaponSlot.stats.damage),
+            0,
+            weaponSlot.stats.pierce,
+            0.5, // 충돌 지속 시간 증가
+            owner.id
+          )
+        );
+
+        aoe.addComponent(
+          new ColliderComponent(
+            80 * weaponSlot.stats.area,
+            ColliderLayer.PlayerProjectile,
+            ColliderLayer.Enemy
+          )
+        );
+
+        const sprite = new SpriteComponent('fire-effect', 160, 160, 0xffffff, 6);
+        aoe.addComponent(sprite);
+
+        // 폭발 이펙트 (fire-effect 애니메이션 재생)
+        const aoeSprite = this.scene!.add.sprite(targetX, targetY, 'fire-effect');
+        aoeSprite.setDepth(6);
+        aoeSprite.setScale(4);
+        aoeSprite.play('fire-attack'); // 애니메이션 재생
+        sprite.setSprite(aoeSprite);
+
+        // 충격파 링 효과
+        const shockwave = this.scene!.add.circle(targetX, targetY, 40, 0xff4400, 0);
+        shockwave.setDepth(5);
+        shockwave.setStrokeStyle(5, 0xff4400, 1);
+
+        this.scene!.tweens.add({
+          targets: shockwave,
+          scaleX: 6,
+          scaleY: 6,
+          alpha: 0,
+          duration: 500,
+          ease: 'Power2',
+          onComplete: () => shockwave.destroy(),
+        });
+
+        // 폭발 후 페이드아웃
+        this.scene!.tweens.add({
+          targets: aoeSprite,
+          alpha: 0,
+          duration: 400,
+          delay: 100,
+          onComplete: () => {
+            meteor.destroy();
+          },
+        });
+      },
+    });
   }
 }
