@@ -720,13 +720,15 @@ export class UIScene extends Phaser.Scene {
     const padding = 4;
     const buttonsPerRow = Math.floor(maxWidth / (buttonSize + padding));
     
-    // 현재 플레이어가 가지고 있는 스킬들 가져오기
+    // 현재 플레이어가 가지고 있는 스킬들만 표시
     const playerSkills = this.gameScene.getPlayerWeaponTypes();
     
-    // 모든 스킬 타입 순회
-    const allSkills = Object.values(WeaponType);
+    // 초기 상태: 모든 보유 스킬 활성화 (selectedSkills에 추가)
+    playerSkills.forEach(skill => this.selectedSkills.add(skill));
+    // GameScene에도 전달
+    this.gameScene.setActiveSkills(Array.from(this.selectedSkills));
     
-    allSkills.forEach((skillType, index) => {
+    playerSkills.forEach((skillType, index) => {
       const row = Math.floor(index / buttonsPerRow);
       const col = index % buttonsPerRow;
       const x = startX + col * (buttonSize + padding);
@@ -734,12 +736,11 @@ export class UIScene extends Phaser.Scene {
 
       const container = this.add.container(x, y);
       const iconInfo = SKILL_ICON_MAP[skillType];
-      const hasSkill = playerSkills.includes(skillType);
 
-      // 배경
+      // 배경 - 초기 상태는 모두 활성화(초록색 테두리)
       const bg = this.add.rectangle(buttonSize / 2, buttonSize / 2, buttonSize, buttonSize, 
-        hasSkill ? 0x333333 : 0x1a1a1a, hasSkill ? 0.9 : 0.5);
-      bg.setStrokeStyle(2, this.selectedSkills.has(skillType) ? 0x00ff00 : iconInfo.color);
+        0x333333, 0.9);
+      bg.setStrokeStyle(3, 0x00ff00); // 활성화: 초록색
 
       // 스킬 아이콘
       let icon: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image;
@@ -749,10 +750,6 @@ export class UIScene extends Phaser.Scene {
         icon = this.add.image(buttonSize / 2, buttonSize / 2, iconInfo.textureKey);
       }
       icon.setDisplaySize(buttonSize - 8, buttonSize - 8);
-      
-      if (!hasSkill) {
-        icon.setAlpha(0.3);
-      }
 
       container.add([bg, icon]);
 
@@ -779,16 +776,19 @@ export class UIScene extends Phaser.Scene {
         if (tooltip) tooltip.destroy();
       });
 
-      // 클릭 시 스킬 토글
+      // 클릭 시 스킬 토글 (skillType을 클로저로 명시적 캡처)
+      const currentSkillType = skillType;
       bg.on('pointerdown', () => {
-        if (!hasSkill) return; // 보유하지 않은 스킬은 토글 불가
-
-        if (this.selectedSkills.has(skillType)) {
-          this.selectedSkills.delete(skillType);
-          bg.setStrokeStyle(2, iconInfo.color);
+        if (this.selectedSkills.has(currentSkillType)) {
+          // 활성화 → 비활성화
+          this.selectedSkills.delete(currentSkillType);
+          bg.setStrokeStyle(3, 0x666666); // 비활성화: 회색
+          icon.setAlpha(0.4);
         } else {
-          this.selectedSkills.add(skillType);
-          bg.setStrokeStyle(2, 0x00ff00);
+          // 비활성화 → 활성화
+          this.selectedSkills.add(currentSkillType);
+          bg.setStrokeStyle(3, 0x00ff00); // 활성화: 초록색
+          icon.setAlpha(1);
         }
         
         // GameScene에 선택된 스킬 전달
@@ -812,15 +812,16 @@ export class UIScene extends Phaser.Scene {
   }
 
   private updateSkillButtonStates(): void {
-    const playerSkills = this.gameScene.getPlayerWeaponTypes();
-    
+    // 선택 상태에 따라 테두리 색상과 아이콘 투명도 업데이트
     this.skillButtons.forEach((container, skillType) => {
-      const hasSkill = playerSkills.includes(skillType);
       const bg = container.getAt(0) as Phaser.GameObjects.Rectangle;
       const icon = container.getAt(1) as Phaser.GameObjects.Sprite | Phaser.GameObjects.Image;
-
-      bg.setFillStyle(hasSkill ? 0x333333 : 0x1a1a1a, hasSkill ? 0.9 : 0.5);
-      icon.setAlpha(hasSkill ? 1 : 0.3);
+      const isActive = this.selectedSkills.has(skillType);
+      
+      // 활성화: 초록색 테두리 + 불투명 아이콘
+      // 비활성화: 회색 테두리 + 반투명 아이콘
+      bg.setStrokeStyle(3, isActive ? 0x00ff00 : 0x666666);
+      icon.setAlpha(isActive ? 1 : 0.4);
     });
   }
 

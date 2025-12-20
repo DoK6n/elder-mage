@@ -23,7 +23,8 @@ import { WEAPON_DEFINITIONS } from '../game/WeaponData';
 export class WeaponSystem extends System {
   public priority = 20;
   private scene: Phaser.Scene | null = null;
-  private activeSkills: WeaponType[] = []; // 개발자 모드에서 선택된 스킬만 발동
+  // null: 필터링 없음 (일반 모드), 배열: 해당 스킬만 발동 (개발자 모드)
+  private activeSkills: WeaponType[] | null = null;
 
   protected readonly requiredComponents: ComponentClass[] = [
     TransformComponent,
@@ -50,8 +51,10 @@ export class WeaponSystem extends System {
 
       // 모든 무기를 순회하며 발사 가능한 무기 발사
       for (let i = 0; i < weapon.weapons.length; i++) {
-        // 개발자 모드에서 특정 스킬만 선택된 경우 필터링
-        if (this.activeSkills.length > 0) {
+        // 개발자 모드에서 스킬 필터링 (activeSkills가 설정되면 해당 스킬만 발동)
+        // activeSkills가 null이면 필터링 없음 (일반 모드)
+        // activeSkills가 빈 배열이면 모든 스킬 비활성화
+        if (this.activeSkills !== null) {
           const weaponType = weapon.weapons[i].type;
           if (!this.activeSkills.includes(weaponType)) {
             continue; // 선택되지 않은 스킬은 스킵
