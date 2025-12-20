@@ -78,7 +78,10 @@ export class UIScene extends Phaser.Scene {
     this.gameScene = data.gameScene;
     this.playerWeapons = new Map();
     this.playerPassives = new Map();
-    this.playerWeapons.set(WeaponType.MagicMissile, 1);
+    // 플레이어가 시작할 때 가지고 있는 무기들
+    this.playerWeapons.set(WeaponType.Fireball, 1);
+    this.playerWeapons.set(WeaponType.IceBolt, 1);
+    this.playerWeapons.set(WeaponType.Meteor, 1);
     this.lastPlayerLevel = 1;
     this.isLevelUpShowing = false;
     

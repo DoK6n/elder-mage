@@ -416,9 +416,15 @@ export function generateUpgradeOptions(
 ): UpgradeOption[] {
   const options: UpgradeOption[] = [];
 
+  // 현재 구현된 스킬만 업그레이드 옵션에 추가
+  const implementedWeapons = [
+    WeaponType.Fireball,
+    WeaponType.IceBolt,
+    WeaponType.Meteor,
+  ];
+
   // Add weapon options (new weapons or upgrades)
-  const allWeaponTypes = Object.values(WeaponType);
-  for (const weaponType of allWeaponTypes) {
+  for (const weaponType of implementedWeapons) {
     const currentLevel = currentWeapons.get(weaponType) || 0;
     const def = WEAPON_DEFINITIONS[weaponType];
 
