@@ -14,7 +14,10 @@
       "Bash(bun run build:*)",
       "Bash(timeout 10 bun run dev:*)",
       "Bash(find:*)",
-      "Bash(bun run lint:*)"
+      "Bash(bun run lint:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   }
 }
