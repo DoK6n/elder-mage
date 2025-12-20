@@ -889,80 +889,76 @@ export class WeaponSystem extends System {
     return baseAngle + spreadAngle;
   }
 
-  // 얼음 공격 (주변에 생성, 정지 효과)
+  // 얼음 공격 (주변 랜덤 위치에 1개씩 생성, 적 얼림이 핵심)
   private createIceBolt(owner: Entity, transform: TransformComponent, weaponSlot: WeaponSlot): void {
     if (!this.scene) return;
 
-    // 캐릭터 주변 8방향에 얼음 생성
-    const directions = 8;
-    const radius = 80; // 캐릭터로부터의 거리
+    // 플레이어 주변 랜덤 위치에 1개 생성 (너무 멀지 않게 50~120 거리)
+    const minRadius = 50;
+    const maxRadius = 120;
+    const radius = minRadius + Math.random() * (maxRadius - minRadius);
+    const angle = Math.random() * Math.PI * 2;
+    const iceX = transform.x + Math.cos(angle) * radius;
+    const iceY = transform.y + Math.sin(angle) * radius;
 
-    for (let i = 0; i < directions; i++) {
-      const angle = (i / directions) * Math.PI * 2;
-      const iceX = transform.x + Math.cos(angle) * radius;
-      const iceY = transform.y + Math.sin(angle) * radius;
+    const ice = this.world.createEntity();
+    ice.addTag('projectile');
+    ice.addTag('player_projectile');
+    ice.addTag('ice_projectile'); // 얼음 태그 추가
 
-      // 약간의 딜레이를 두고 순차적으로 생성
-      this.scene.time.delayedCall(i * 50, () => {
-        const ice = this.world.createEntity();
-        ice.addTag('projectile');
-        ice.addTag('player_projectile');
-        ice.addTag('ice_projectile'); // 얼음 태그 추가
+    ice.addComponent(new TransformComponent(iceX, iceY));
+    ice.addComponent(new VelocityComponent(0, 0, 0)); // 정지 상태
 
-        ice.addComponent(new TransformComponent(iceX, iceY));
-        ice.addComponent(new VelocityComponent(0, 0, 0)); // 정지 상태
+    ice.addComponent(
+      new ProjectileComponent(
+        Math.floor(weaponSlot.stats.damage),
+        0,
+        999, // 범위 내 모든 적 타격
+        weaponSlot.stats.duration,
+        owner.id
+      )
+    );
 
-        ice.addComponent(
-          new ProjectileComponent(
-            Math.floor(weaponSlot.stats.damage),
-            0,
-            999, // 범위 내 모든 적 타격
-            1.0, // 1초 동안 유지
-            owner.id
-          )
-        );
+    // 얼리는 범위 증가 (70 → 80 기본 반지름)
+    ice.addComponent(
+      new ColliderComponent(
+        80 * weaponSlot.stats.area, // 충돌 범위 증가
+        ColliderLayer.PlayerProjectile,
+        ColliderLayer.Enemy
+      )
+    );
 
-        ice.addComponent(
-          new ColliderComponent(
-            60 * weaponSlot.stats.area, // 충돌 범위
-            ColliderLayer.PlayerProjectile,
-            ColliderLayer.Enemy
-          )
-        );
+    const sprite = new SpriteComponent('ice-effect', 120, 120, 0xffffff, 5);
+    ice.addComponent(sprite);
 
-        const sprite = new SpriteComponent('ice-effect', 120, 120, 0xffffff, 5);
-        ice.addComponent(sprite);
+    // 얼음 이펙트 스프라이트 생성
+    const iceSprite = this.scene.add.sprite(iceX, iceY, 'ice-effect');
+    iceSprite.setDepth(5);
+    iceSprite.setScale(1.4 * weaponSlot.stats.area); // area에 따라 스케일 조정
+    iceSprite.setAlpha(0);
+    sprite.setSprite(iceSprite);
 
-        // 얼음 이펙트 스프라이트 생성
-        const iceSprite = this.scene!.add.sprite(iceX, iceY, 'ice-effect');
-        iceSprite.setDepth(5);
-        iceSprite.setScale(1.2); // 2배 증가
-        iceSprite.setAlpha(0);
-        sprite.setSprite(iceSprite);
+    // 갑자기 나타나는 효과
+    this.scene.tweens.add({
+      targets: iceSprite,
+      alpha: 1,
+      scaleX: 1.6 * weaponSlot.stats.area,
+      scaleY: 1.6 * weaponSlot.stats.area,
+      duration: 100,
+      ease: 'Back.easeOut',
+      onComplete: () => {
+        iceSprite.play('ice-attack'); // 10프레임 애니메이션 재생
 
-        // 갑자기 나타나는 효과
-        this.scene!.tweens.add({
-          targets: iceSprite,
-          alpha: 1,
-          scaleX: 1.4,
-          scaleY: 1.4,
-          duration: 100,
-          ease: 'Back.easeOut',
-          onComplete: () => {
-            iceSprite.play('ice-attack'); // 10프레임 애니메이션 재생
-
-            // 애니메이션 종료 후 페이드아웃
-            iceSprite.once('animationcomplete', () => {
-              this.scene?.tweens.add({
-                targets: iceSprite,
-                alpha: 0,
-                duration: 200,
-              });
-            });
-          },
+        // 애니메이션 종료 후 페이드아웃
+        iceSprite.once('animationcomplete', () => {
+          this.scene?.tweens.add({
+            targets: iceSprite,
+            alpha: 0,
+            duration: 200,
+          });
         });
-      });
-    }
+      },
+    });
   }
 
   // 화염구 (관통 4회)
