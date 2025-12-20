@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir /s \"C:\\\\Users\\\\ehrbs\\\\projects\\\\game\\\\vamsur\\\\src\")",
+      "Bash(npx tsc:*)",
+      "Bash(npm run lint)",
+      "Bash(npm run build:*)",
+      "Bash(timeout 10 npm run dev:*)",
+      "Bash(dir /s /b \"C:\\\\Users\\\\ehrbs\\\\projects\\\\game\\\\vamsur\\\\public\")",
+      "Bash(dir /s /b \"C:\\\\Users\\\\ehrbs\\\\projects\\\\game\\\\vamsur\\\\public\\\\assets\\\\Tiny RPG Character Asset Pack*\\\\Characters\\(100x100\\)\\\\Wizard\")",
+      "Bash(dir /s /b \"C:\\\\Users\\\\ehrbs\\\\projects\\\\game\\\\vamsur\\\\public\\\\assets\\\\Tiny RPG Character Asset Pack*\\\\Characters\\(100x100\\)\\\\Slime\")",
+      "Bash(dir /s /b \"C:\\\\Users\\\\ehrbs\\\\projects\\\\game\\\\vamsur\\\\public\\\\assets\\\\Tiny RPG Character Asset Pack*\\\\Characters\\(100x100\\)\\\\Orc\")"
+    ]
+  }
+}

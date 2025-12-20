@@ -1,0 +1,874 @@
+import type Phaser from 'phaser';
+import {
+  ColliderComponent,
+  ColliderLayer,
+  EnemyComponent,
+  PlayerComponent,
+  ProjectileComponent,
+  SpriteComponent,
+  TransformComponent,
+  VelocityComponent,
+  WeaponComponent,
+  WeaponType,
+  ElementType,
+  getElementFromWeapon,
+  getElementColor,
+} from '../components';
+import type { ComponentClass } from '../ecs/Component';
+import type { Entity } from '../ecs/Entity';
+import { System } from '../ecs/System';
+import { WEAPON_DEFINITIONS } from '../game/WeaponData';
+
+export class WeaponSystem extends System {
+  public priority = 20;
+  private scene: Phaser.Scene | null = null;
+
+  protected readonly requiredComponents: ComponentClass[] = [
+    TransformComponent,
+    WeaponComponent,
+    PlayerComponent,
+  ];
+
+  setScene(scene: Phaser.Scene): void {
+    this.scene = scene;
+  }
+
+  update(dt: number): void {
+    const entities = this.getEntities();
+
+    for (const entity of entities) {
+      const transform = entity.getComponent(TransformComponent)!;
+      const weapon = entity.getComponent(WeaponComponent)!;
+
+      weapon.updateCooldown(dt);
+
+      if (weapon.canFire()) {
+        this.fireWeapon(entity, transform, weapon);
+        weapon.fire();
+      }
+    }
+  }
+
+  private fireWeapon(owner: Entity, transform: TransformComponent, weapon: WeaponComponent): void {
+    const weaponDef = WEAPON_DEFINITIONS[weapon.type];
+    const textureKey = weaponDef?.textureKey || 'projectile';
+
+    // 특수 무기 처리
+    switch (weapon.type) {
+      case WeaponType.WaterShield:
+      case WeaponType.Earthquake:
+        this.createAuraAttack(owner, transform, weapon, textureKey);
+        return;
+
+      case WeaponType.FireWall:
+        this.createFireWall(owner, transform, weapon);
+        return;
+
+      case WeaponType.SummonGolem:
+        this.summonGolem(owner, transform, weapon);
+        return;
+
+      case WeaponType.Blizzard:
+        this.createBlizzard(owner, transform, weapon);
+        return;
+
+      case WeaponType.ThunderStorm:
+        this.createThunderStorm(owner, transform, weapon);
+        return;
+
+      case WeaponType.Tornado:
+        this.createTornado(owner, transform, weapon);
+        return;
+
+      case WeaponType.RockSpike:
+        this.createRockSpike(owner, transform, weapon);
+        return;
+
+      case WeaponType.AirSlash:
+        this.createCircularAttack(owner, transform, weapon, textureKey);
+        return;
+
+      case WeaponType.ChainLightning:
+        this.createChainLightning(owner, transform, weapon);
+        return;
+
+      default:
+        this.createStandardProjectile(owner, transform, weapon, textureKey);
+    }
+  }
+
+  // 표준 투사체 발사
+  private createStandardProjectile(
+    owner: Entity,
+    transform: TransformComponent,
+    weapon: WeaponComponent,
+    textureKey: string
+  ): void {
+    const nearestEnemy = this.findNearestEnemy(transform);
+
+    for (let i = 0; i < weapon.stats.projectileCount; i++) {
+      const projectile = this.world.createEntity();
+      projectile.addTag('projectile');
+      projectile.addTag('player_projectile');
+
+      const angle = this.calculateProjectileAngle(transform, nearestEnemy, i, weapon);
+      const dirX = Math.cos(angle);
+      const dirY = Math.sin(angle);
+
+      projectile.addComponent(new TransformComponent(transform.x, transform.y));
+
+      projectile.addComponent(
+        new VelocityComponent(
+          dirX * weapon.stats.projectileSpeed,
+          dirY * weapon.stats.projectileSpeed,
+          weapon.stats.projectileSpeed
+        )
+      );
+
+      projectile.addComponent(
+        new ProjectileComponent(
+          weapon.getEffectiveDamage(),
+          weapon.stats.projectileSpeed,
+          weapon.stats.pierce,
+          weapon.stats.duration,
+          owner.id
+        )
+      );
+
+      projectile.addComponent(
+        new ColliderComponent(
+          8 * weapon.stats.area,
+          ColliderLayer.PlayerProjectile,
+          ColliderLayer.Enemy
+        )
+      );
+
+      const sprite = new SpriteComponent(textureKey, 16, 16, 0xffffff, 5);
+      projectile.addComponent(sprite);
+
+      if (this.scene) {
+        const projectileSprite = this.scene.add.sprite(transform.x, transform.y, textureKey);
+        projectileSprite.setDepth(5);
+        projectileSprite.setScale(weapon.stats.area);
+        projectileSprite.setRotation(angle);
+        sprite.setSprite(projectileSprite);
+
+        // 속성별 파티클 효과
+        this.addElementalTrail(projectileSprite, weapon.element);
+      }
+    }
+  }
+
+  // 오라/광역 공격 (Water Shield, Earthquake 등)
+  private createAuraAttack(
+    owner: Entity,
+    transform: TransformComponent,
+    weapon: WeaponComponent,
+    textureKey: string
+  ): void {
+    const projectile = this.world.createEntity();
+    projectile.addTag('projectile');
+    projectile.addTag('player_projectile');
+
+    projectile.addComponent(new TransformComponent(transform.x, transform.y));
+    projectile.addComponent(new VelocityComponent(0, 0, 0));
+
+    projectile.addComponent(
+      new ProjectileComponent(
+        weapon.getEffectiveDamage(),
+        0,
+        weapon.stats.pierce,
+        weapon.stats.duration,
+        owner.id
+      )
+    );
+
+    const radius = 50 * weapon.stats.area;
+    projectile.addComponent(
+      new ColliderComponent(radius, ColliderLayer.PlayerProjectile, ColliderLayer.Enemy)
+    );
+
+    const sprite = new SpriteComponent(textureKey, 40, 40, 0xffffff, 4);
+    projectile.addComponent(sprite);
+
+    if (this.scene) {
+      const color = getElementColor(weapon.element);
+
+      // 광역 이펙트
+      const circle = this.scene.add.circle(transform.x, transform.y, radius * 0.5, color, 0.3);
+      circle.setDepth(4);
+      circle.setStrokeStyle(3, color, 0.8);
+
+      this.scene.tweens.add({
+        targets: circle,
+        scaleX: 1.5,
+        scaleY: 1.5,
+        alpha: 0,
+        duration: weapon.stats.duration * 1000,
+        onComplete: () => circle.destroy(),
+      });
+
+      // 파티클
+      for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * Math.PI * 2;
+        const px = transform.x + Math.cos(angle) * radius * 0.3;
+        const py = transform.y + Math.sin(angle) * radius * 0.3;
+
+        const particle = this.scene.add.circle(px, py, 4, color, 0.8);
+        particle.setDepth(5);
+
+        this.scene.tweens.add({
+          targets: particle,
+          x: transform.x + Math.cos(angle) * radius,
+          y: transform.y + Math.sin(angle) * radius,
+          alpha: 0,
+          duration: weapon.stats.duration * 800,
+          onComplete: () => particle.destroy(),
+        });
+      }
+    }
+  }
+
+  // 파이어 월 생성
+  private createFireWall(
+    owner: Entity,
+    transform: TransformComponent,
+    weapon: WeaponComponent
+  ): void {
+    const nearestEnemy = this.findNearestEnemy(transform);
+    let angle = Math.random() * Math.PI * 2;
+
+    if (nearestEnemy) {
+      const enemyTransform = nearestEnemy.getComponent(TransformComponent)!;
+      angle = Math.atan2(enemyTransform.y - transform.y, enemyTransform.x - transform.x);
+    }
+
+    const distance = 80;
+    const wallX = transform.x + Math.cos(angle) * distance;
+    const wallY = transform.y + Math.sin(angle) * distance;
+
+    const projectile = this.world.createEntity();
+    projectile.addTag('projectile');
+    projectile.addTag('player_projectile');
+
+    projectile.addComponent(new TransformComponent(wallX, wallY));
+    projectile.addComponent(new VelocityComponent(0, 0, 0));
+
+    projectile.addComponent(
+      new ProjectileComponent(
+        weapon.getEffectiveDamage(),
+        0,
+        weapon.stats.pierce,
+        weapon.stats.duration,
+        owner.id
+      )
+    );
+
+    const radius = 40 * weapon.stats.area;
+    projectile.addComponent(
+      new ColliderComponent(radius, ColliderLayer.PlayerProjectile, ColliderLayer.Enemy)
+    );
+
+    if (this.scene) {
+      // 불벽 이펙트
+      const firewall = this.scene.add.sprite(wallX, wallY, 'proj_firewall');
+      firewall.setDepth(4);
+      firewall.setScale(weapon.stats.area);
+      firewall.setRotation(angle);
+
+      // 불꽃 애니메이션
+      this.scene.tweens.add({
+        targets: firewall,
+        scaleY: weapon.stats.area * 1.2,
+        duration: 200,
+        yoyo: true,
+        repeat: Math.floor(weapon.stats.duration * 2.5),
+      });
+
+      // 소멸
+      this.scene.time.delayedCall(weapon.stats.duration * 1000, () => {
+        this.scene?.tweens.add({
+          targets: firewall,
+          alpha: 0,
+          duration: 300,
+          onComplete: () => firewall.destroy(),
+        });
+      });
+    }
+  }
+
+  // 골렘 소환
+  private summonGolem(
+    owner: Entity,
+    transform: TransformComponent,
+    weapon: WeaponComponent
+  ): void {
+    const golem = this.world.createEntity();
+    golem.addTag('projectile');
+    golem.addTag('player_projectile');
+    golem.addTag('golem');
+
+    // 플레이어 앞에 소환
+    const spawnX = transform.x + (Math.random() - 0.5) * 60;
+    const spawnY = transform.y + (Math.random() - 0.5) * 60;
+
+    golem.addComponent(new TransformComponent(spawnX, spawnY));
+
+    // 골렘은 적을 찾아 이동
+    golem.addComponent(new VelocityComponent(0, 0, weapon.stats.projectileSpeed));
+
+    golem.addComponent(
+      new ProjectileComponent(
+        weapon.getEffectiveDamage(),
+        weapon.stats.projectileSpeed,
+        weapon.stats.pierce,
+        weapon.stats.duration,
+        owner.id
+      )
+    );
+
+    const radius = 24 * weapon.stats.area;
+    golem.addComponent(
+      new ColliderComponent(radius, ColliderLayer.PlayerProjectile, ColliderLayer.Enemy)
+    );
+
+    const sprite = new SpriteComponent('proj_golem', 48, 48, 0xffffff, 6);
+    golem.addComponent(sprite);
+
+    if (this.scene) {
+      // 소환 이펙트
+      const summonEffect = this.scene.add.circle(spawnX, spawnY, 30, 0x8b4513, 0.5);
+      summonEffect.setDepth(3);
+
+      this.scene.tweens.add({
+        targets: summonEffect,
+        scaleX: 2,
+        scaleY: 2,
+        alpha: 0,
+        duration: 500,
+        onComplete: () => summonEffect.destroy(),
+      });
+
+      // 골렘 스프라이트
+      const golemSprite = this.scene.add.sprite(spawnX, spawnY, 'proj_golem');
+      golemSprite.setDepth(6);
+      golemSprite.setScale(weapon.stats.area);
+      sprite.setSprite(golemSprite);
+
+      // 소환 애니메이션
+      golemSprite.setAlpha(0);
+      golemSprite.setScale(0.5);
+
+      this.scene.tweens.add({
+        targets: golemSprite,
+        alpha: 1,
+        scaleX: weapon.stats.area,
+        scaleY: weapon.stats.area,
+        duration: 500,
+        ease: 'Back.easeOut',
+      });
+    }
+  }
+
+  // 블리자드
+  private createBlizzard(
+    owner: Entity,
+    transform: TransformComponent,
+    weapon: WeaponComponent
+  ): void {
+    const radius = 100 * weapon.stats.area;
+
+    for (let i = 0; i < weapon.stats.projectileCount; i++) {
+      this.scene?.time.delayedCall(i * 200, () => {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = Math.random() * radius;
+        const snowX = transform.x + Math.cos(angle) * dist;
+        const snowY = transform.y + Math.sin(angle) * dist;
+
+        const projectile = this.world.createEntity();
+        projectile.addTag('projectile');
+        projectile.addTag('player_projectile');
+
+        projectile.addComponent(new TransformComponent(snowX, snowY));
+        projectile.addComponent(new VelocityComponent(0, 0, 0));
+
+        projectile.addComponent(
+          new ProjectileComponent(
+            weapon.getEffectiveDamage(),
+            0,
+            1,
+            0.5,
+            owner.id
+          )
+        );
+
+        projectile.addComponent(
+          new ColliderComponent(15 * weapon.stats.area, ColliderLayer.PlayerProjectile, ColliderLayer.Enemy)
+        );
+
+        if (this.scene) {
+          const snowflake = this.scene.add.sprite(snowX, snowY - 50, 'proj_blizzard');
+          snowflake.setDepth(7);
+          snowflake.setScale(weapon.stats.area);
+
+          this.scene.tweens.add({
+            targets: snowflake,
+            y: snowY,
+            rotation: Math.PI * 2,
+            alpha: 0,
+            duration: 800,
+            onComplete: () => snowflake.destroy(),
+          });
+        }
+      });
+    }
+  }
+
+  // 썬더스톰
+  private createThunderStorm(
+    owner: Entity,
+    transform: TransformComponent,
+    weapon: WeaponComponent
+  ): void {
+    const radius = 150 * weapon.stats.area;
+
+    for (let i = 0; i < weapon.stats.projectileCount; i++) {
+      this.scene?.time.delayedCall(i * 300 + Math.random() * 200, () => {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = Math.random() * radius;
+        const strikeX = transform.x + Math.cos(angle) * dist;
+        const strikeY = transform.y + Math.sin(angle) * dist;
+
+        const projectile = this.world.createEntity();
+        projectile.addTag('projectile');
+        projectile.addTag('player_projectile');
+
+        projectile.addComponent(new TransformComponent(strikeX, strikeY));
+        projectile.addComponent(new VelocityComponent(0, 0, 0));
+
+        projectile.addComponent(
+          new ProjectileComponent(
+            weapon.getEffectiveDamage(),
+            0,
+            weapon.stats.pierce,
+            0.3,
+            owner.id
+          )
+        );
+
+        projectile.addComponent(
+          new ColliderComponent(20 * weapon.stats.area, ColliderLayer.PlayerProjectile, ColliderLayer.Enemy)
+        );
+
+        if (this.scene) {
+          // 번개 이펙트
+          const lightning = this.scene.add.sprite(strikeX, strikeY - 100, 'proj_thunder');
+          lightning.setDepth(8);
+          lightning.setScaleY(3);
+          lightning.setAlpha(0);
+
+          this.scene.tweens.add({
+            targets: lightning,
+            alpha: 1,
+            y: strikeY,
+            duration: 100,
+            onComplete: () => {
+              // 플래시 효과
+              const flash = this.scene?.add.circle(strikeX, strikeY, 30, 0xffffff, 0.8);
+              flash?.setDepth(9);
+
+              this.scene?.tweens.add({
+                targets: [lightning, flash],
+                alpha: 0,
+                duration: 200,
+                onComplete: () => {
+                  lightning.destroy();
+                  flash?.destroy();
+                },
+              });
+            },
+          });
+        }
+      });
+    }
+  }
+
+  // 토네이도
+  private createTornado(
+    owner: Entity,
+    transform: TransformComponent,
+    weapon: WeaponComponent
+  ): void {
+    const nearestEnemy = this.findNearestEnemy(transform);
+
+    const projectile = this.world.createEntity();
+    projectile.addTag('projectile');
+    projectile.addTag('player_projectile');
+    projectile.addTag('tornado');
+
+    projectile.addComponent(new TransformComponent(transform.x, transform.y));
+
+    let vx = 0;
+    let vy = 0;
+    if (nearestEnemy) {
+      const enemyTransform = nearestEnemy.getComponent(TransformComponent)!;
+      const angle = Math.atan2(enemyTransform.y - transform.y, enemyTransform.x - transform.x);
+      vx = Math.cos(angle) * weapon.stats.projectileSpeed;
+      vy = Math.sin(angle) * weapon.stats.projectileSpeed;
+    } else {
+      const angle = Math.random() * Math.PI * 2;
+      vx = Math.cos(angle) * weapon.stats.projectileSpeed;
+      vy = Math.sin(angle) * weapon.stats.projectileSpeed;
+    }
+
+    projectile.addComponent(new VelocityComponent(vx, vy, weapon.stats.projectileSpeed));
+
+    projectile.addComponent(
+      new ProjectileComponent(
+        weapon.getEffectiveDamage(),
+        weapon.stats.projectileSpeed,
+        weapon.stats.pierce,
+        weapon.stats.duration,
+        owner.id
+      )
+    );
+
+    const radius = 35 * weapon.stats.area;
+    projectile.addComponent(
+      new ColliderComponent(radius, ColliderLayer.PlayerProjectile, ColliderLayer.Enemy)
+    );
+
+    const sprite = new SpriteComponent('proj_tornado', 32, 32, 0xffffff, 5);
+    projectile.addComponent(sprite);
+
+    if (this.scene) {
+      const tornado = this.scene.add.sprite(transform.x, transform.y, 'proj_tornado');
+      tornado.setDepth(5);
+      tornado.setScale(weapon.stats.area);
+      sprite.setSprite(tornado);
+
+      // 회전 애니메이션
+      this.scene.tweens.add({
+        targets: tornado,
+        rotation: Math.PI * 8,
+        duration: weapon.stats.duration * 1000,
+        repeat: 0,
+      });
+    }
+  }
+
+  // 락 스파이크
+  private createRockSpike(
+    owner: Entity,
+    transform: TransformComponent,
+    weapon: WeaponComponent
+  ): void {
+    const nearestEnemy = this.findNearestEnemy(transform);
+    let targetX = transform.x + (Math.random() - 0.5) * 100;
+    let targetY = transform.y + (Math.random() - 0.5) * 100;
+
+    if (nearestEnemy) {
+      const enemyTransform = nearestEnemy.getComponent(TransformComponent)!;
+      targetX = enemyTransform.x;
+      targetY = enemyTransform.y;
+    }
+
+    const projectile = this.world.createEntity();
+    projectile.addTag('projectile');
+    projectile.addTag('player_projectile');
+
+    projectile.addComponent(new TransformComponent(targetX, targetY));
+    projectile.addComponent(new VelocityComponent(0, 0, 0));
+
+    projectile.addComponent(
+      new ProjectileComponent(
+        weapon.getEffectiveDamage(),
+        0,
+        weapon.stats.pierce,
+        weapon.stats.duration,
+        owner.id
+      )
+    );
+
+    const radius = 25 * weapon.stats.area;
+    projectile.addComponent(
+      new ColliderComponent(radius, ColliderLayer.PlayerProjectile, ColliderLayer.Enemy)
+    );
+
+    if (this.scene) {
+      // 땅 갈라짐 이펙트
+      const crack = this.scene.add.sprite(targetX, targetY, 'proj_rock');
+      crack.setDepth(3);
+      crack.setScale(0);
+      crack.setAlpha(0.8);
+
+      // 솟아오르는 애니메이션
+      this.scene.tweens.add({
+        targets: crack,
+        scaleX: weapon.stats.area * 1.5,
+        scaleY: weapon.stats.area * 1.5,
+        duration: 150,
+        ease: 'Back.easeOut',
+        onComplete: () => {
+          this.scene?.tweens.add({
+            targets: crack,
+            alpha: 0,
+            scaleY: weapon.stats.area * 0.5,
+            duration: 300,
+            delay: 200,
+            onComplete: () => crack.destroy(),
+          });
+        },
+      });
+
+      // 먼지 파티클
+      for (let i = 0; i < 5; i++) {
+        const dust = this.scene.add.circle(
+          targetX + (Math.random() - 0.5) * 30,
+          targetY + (Math.random() - 0.5) * 30,
+          3 + Math.random() * 4,
+          0x8b4513,
+          0.6
+        );
+        dust.setDepth(4);
+
+        this.scene.tweens.add({
+          targets: dust,
+          y: dust.y - 20 - Math.random() * 20,
+          alpha: 0,
+          duration: 400,
+          onComplete: () => dust.destroy(),
+        });
+      }
+    }
+  }
+
+  // 체인 라이트닝
+  private createChainLightning(
+    owner: Entity,
+    transform: TransformComponent,
+    weapon: WeaponComponent
+  ): void {
+    const enemies = this.world.getEntitiesWithComponents(TransformComponent, EnemyComponent);
+    if (enemies.length === 0) return;
+
+    // 가장 가까운 적부터 시작
+    let currentTarget = this.findNearestEnemy(transform);
+    if (!currentTarget) return;
+
+    const hitEnemies = new Set<number>();
+    let chainCount = weapon.stats.pierce;
+    let lastX = transform.x;
+    let lastY = transform.y;
+
+    const chainNext = (delay: number) => {
+      if (chainCount <= 0 || !currentTarget) return;
+
+      const targetTransform = currentTarget.getComponent(TransformComponent)!;
+      const targetX = targetTransform.x;
+      const targetY = targetTransform.y;
+
+      this.scene?.time.delayedCall(delay, () => {
+        // 데미지 적용 (충돌 시스템 통해)
+        const projectile = this.world.createEntity();
+        projectile.addTag('projectile');
+        projectile.addTag('player_projectile');
+
+        projectile.addComponent(new TransformComponent(targetX, targetY));
+        projectile.addComponent(new VelocityComponent(0, 0, 0));
+
+        projectile.addComponent(
+          new ProjectileComponent(
+            weapon.getEffectiveDamage(),
+            0,
+            1,
+            0.1,
+            owner.id
+          )
+        );
+
+        projectile.addComponent(
+          new ColliderComponent(15, ColliderLayer.PlayerProjectile, ColliderLayer.Enemy)
+        );
+
+        // 번개 라인 이펙트
+        if (this.scene) {
+          const line = this.scene.add.graphics();
+          line.setDepth(8);
+          line.lineStyle(3, 0xffff00, 1);
+          line.lineBetween(lastX, lastY, targetX, targetY);
+
+          // 전기 스파크
+          const spark = this.scene.add.sprite(targetX, targetY, 'proj_chain');
+          spark.setDepth(9);
+          spark.setScale(weapon.stats.area * 0.8);
+
+          this.scene.tweens.add({
+            targets: [line, spark],
+            alpha: 0,
+            duration: 200,
+            onComplete: () => {
+              line.destroy();
+              spark.destroy();
+            },
+          });
+        }
+
+        hitEnemies.add(currentTarget!.id);
+        lastX = targetX;
+        lastY = targetY;
+        chainCount--;
+
+        // 다음 타겟 찾기
+        let nearestDist = Infinity;
+        let nextTarget: Entity | null = null;
+
+        for (const enemy of enemies) {
+          if (hitEnemies.has(enemy.id)) continue;
+
+          const enemyTransform = enemy.getComponent(TransformComponent)!;
+          const dist = Math.hypot(enemyTransform.x - targetX, enemyTransform.y - targetY);
+
+          if (dist < nearestDist && dist < 150) {
+            nearestDist = dist;
+            nextTarget = enemy;
+          }
+        }
+
+        currentTarget = nextTarget;
+        chainNext(100);
+      });
+    };
+
+    chainNext(0);
+  }
+
+  // 원형 공격 (Air Slash 등)
+  private createCircularAttack(
+    owner: Entity,
+    transform: TransformComponent,
+    weapon: WeaponComponent,
+    textureKey: string
+  ): void {
+    for (let i = 0; i < weapon.stats.projectileCount; i++) {
+      const angle = (i / weapon.stats.projectileCount) * Math.PI * 2;
+      const dirX = Math.cos(angle);
+      const dirY = Math.sin(angle);
+
+      const projectile = this.world.createEntity();
+      projectile.addTag('projectile');
+      projectile.addTag('player_projectile');
+
+      projectile.addComponent(new TransformComponent(transform.x, transform.y));
+
+      projectile.addComponent(
+        new VelocityComponent(
+          dirX * weapon.stats.projectileSpeed,
+          dirY * weapon.stats.projectileSpeed,
+          weapon.stats.projectileSpeed
+        )
+      );
+
+      projectile.addComponent(
+        new ProjectileComponent(
+          weapon.getEffectiveDamage(),
+          weapon.stats.projectileSpeed,
+          weapon.stats.pierce,
+          weapon.stats.duration,
+          owner.id
+        )
+      );
+
+      projectile.addComponent(
+        new ColliderComponent(
+          8 * weapon.stats.area,
+          ColliderLayer.PlayerProjectile,
+          ColliderLayer.Enemy
+        )
+      );
+
+      const sprite = new SpriteComponent(textureKey, 16, 16, 0xffffff, 5);
+      projectile.addComponent(sprite);
+
+      if (this.scene) {
+        const projectileSprite = this.scene.add.sprite(transform.x, transform.y, textureKey);
+        projectileSprite.setDepth(5);
+        projectileSprite.setScale(weapon.stats.area);
+        projectileSprite.setRotation(angle);
+        sprite.setSprite(projectileSprite);
+      }
+    }
+  }
+
+  // 속성별 트레일 이펙트
+  private addElementalTrail(sprite: Phaser.GameObjects.Sprite, element: ElementType): void {
+    if (!this.scene || element === ElementType.None) return;
+
+    const color = getElementColor(element);
+
+    // 주기적으로 트레일 파티클 생성
+    const trailEvent = this.scene.time.addEvent({
+      delay: 50,
+      callback: () => {
+        if (!sprite.active) {
+          trailEvent.destroy();
+          return;
+        }
+
+        const trail = this.scene?.add.circle(sprite.x, sprite.y, 3, color, 0.5);
+        if (trail) {
+          trail.setDepth(4);
+          this.scene?.tweens.add({
+            targets: trail,
+            alpha: 0,
+            scaleX: 0.3,
+            scaleY: 0.3,
+            duration: 200,
+            onComplete: () => trail.destroy(),
+          });
+        }
+      },
+      repeat: -1,
+    });
+  }
+
+  private findNearestEnemy(playerTransform: TransformComponent): Entity | null {
+    const enemies = this.world.getEntitiesWithComponents(TransformComponent, EnemyComponent);
+    let nearest: Entity | null = null;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+
+    for (const enemy of enemies) {
+      const enemyTransform = enemy.getComponent(TransformComponent)!;
+      const distance = playerTransform.distanceTo(enemyTransform);
+
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = enemy;
+      }
+    }
+
+    return nearest;
+  }
+
+  private calculateProjectileAngle(
+    playerTransform: TransformComponent,
+    nearestEnemy: Entity | null,
+    index: number,
+    weapon: WeaponComponent
+  ): number {
+    let baseAngle = 0;
+
+    if (nearestEnemy) {
+      const enemyTransform = nearestEnemy.getComponent(TransformComponent)!;
+      baseAngle = Math.atan2(
+        enemyTransform.y - playerTransform.y,
+        enemyTransform.x - playerTransform.x
+      );
+    } else {
+      baseAngle = Math.random() * Math.PI * 2;
+    }
+
+    const spreadAngle = (Math.PI / 6) * (index - (weapon.stats.projectileCount - 1) / 2);
+    return baseAngle + spreadAngle;
+  }
+}
