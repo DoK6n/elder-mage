@@ -22,6 +22,11 @@ export class UIScene extends Phaser.Scene {
   private playerWeapons: Map<WeaponType, number> = new Map();
   private playerPassives: Map<string, number> = new Map();
 
+  // 키보드 네비게이션을 위한 상태
+  private selectedCardIndex = 0;
+  private upgradeCards: Phaser.GameObjects.Container[] = [];
+  private currentUpgradeOptions: UpgradeOption[] = [];
+
   constructor() {
     super({ key: 'UIScene' });
   }
@@ -44,6 +49,62 @@ export class UIScene extends Phaser.Scene {
 
     this.events.on('gameOver', this.showGameOver, this);
     this.events.on('levelUp', this.showLevelUp, this);
+
+    // 키보드 네비게이션 설정
+    this.input.keyboard?.on('keydown-LEFT', this.handleLeftKey, this);
+    this.input.keyboard?.on('keydown-RIGHT', this.handleRightKey, this);
+    this.input.keyboard?.on('keydown-ENTER', this.handleConfirmKey, this);
+    this.input.keyboard?.on('keydown-SPACE', this.handleConfirmKey, this);
+  }
+
+  private handleLeftKey(): void {
+    if (!this.isLevelUpShowing || this.upgradeCards.length === 0) return;
+    this.selectedCardIndex = (this.selectedCardIndex - 1 + this.upgradeCards.length) % this.upgradeCards.length;
+    this.updateCardSelection();
+  }
+
+  private handleRightKey(): void {
+    if (!this.isLevelUpShowing || this.upgradeCards.length === 0) return;
+    this.selectedCardIndex = (this.selectedCardIndex + 1) % this.upgradeCards.length;
+    this.updateCardSelection();
+  }
+
+  private handleConfirmKey(): void {
+    if (!this.isLevelUpShowing || this.currentUpgradeOptions.length === 0) return;
+    const selectedOption = this.currentUpgradeOptions[this.selectedCardIndex];
+    if (selectedOption) {
+      this.selectUpgrade(selectedOption);
+    }
+  }
+
+  private updateCardSelection(): void {
+    this.upgradeCards.forEach((card, index) => {
+      const bg = card.getAt(0) as Phaser.GameObjects.Rectangle;
+      const hoverBg = card.getAt(1) as Phaser.GameObjects.Rectangle;
+      const option = this.currentUpgradeOptions[index];
+
+      if (index === this.selectedCardIndex) {
+        // 선택된 카드 하이라이트
+        hoverBg.setVisible(true);
+        bg.setStrokeStyle(4, 0xffffff);
+        this.tweens.add({
+          targets: card,
+          scaleX: 1.05,
+          scaleY: 1.05,
+          duration: 100,
+        });
+      } else {
+        // 비선택 카드 원래 상태로
+        hoverBg.setVisible(false);
+        bg.setStrokeStyle(3, option?.color ?? 0xffffff);
+        this.tweens.add({
+          targets: card,
+          scaleX: 1,
+          scaleY: 1,
+          duration: 100,
+        });
+      }
+    });
   }
 
   private createHealthBar(): void {
@@ -211,8 +272,13 @@ export class UIScene extends Phaser.Scene {
       }
     });
 
+    // 키보드 네비게이션 상태 초기화
+    this.upgradeCards = [];
+    this.selectedCardIndex = 0;
+
     // Generate upgrade options
     const options = generateUpgradeOptions(this.playerWeapons, this.playerPassives, 3);
+    this.currentUpgradeOptions = options;
 
     // Create cards
     const cardWidth = 200;
@@ -225,10 +291,14 @@ export class UIScene extends Phaser.Scene {
       const cardX = startX + index * (cardWidth + cardSpacing);
       const card = this.createUpgradeCard(cardX, 20, cardWidth, cardHeight, option);
       card.setName('upgrade_card');
+      this.upgradeCards.push(card);
       this.levelUpContainer.add(card);
     });
 
     this.levelUpContainer.setVisible(true);
+
+    // 첫 번째 카드 선택 상태로 표시
+    this.updateCardSelection();
 
     // Flash effect
     this.cameras.main.flash(200, 255, 255, 100);
