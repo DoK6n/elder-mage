@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { generateUpgradeOptions, WEAPON_DEFINITIONS, type UpgradeOption } from '../game/WeaponData';
+import { MAP_DEFINITIONS, MapType } from '../game/MapData';
 import { WeaponType } from '../components/WeaponComponent';
 import type { GameScene } from './GameScene';
 
@@ -645,7 +646,7 @@ export class UIScene extends Phaser.Scene {
 
   private createDevPanel(): void {
     const panelWidth = 280;
-    const panelHeight = 400;
+    const panelHeight = 500; // 높이 증가
     const x = this.cameras.main.width - panelWidth - 10;
     const y = this.cameras.main.height - panelHeight - 50;
 
@@ -699,6 +700,17 @@ export class UIScene extends Phaser.Scene {
 
     // 스킬 버튼들 생성
     this.createSkillButtons(10, 155, panelWidth - 20);
+
+    // 맵 선택 섹션
+    const mapLabel = this.add.text(10, 230, 'Map Selection:', {
+      fontFamily: 'Arial',
+      fontSize: '12px',
+      color: '#aaaaaa',
+    });
+    this.devPanel.add(mapLabel);
+
+    // 맵 선택 버튼들 생성
+    this.createMapButtons(10, 250, panelWidth - 20);
   }
 
   private createToggleButton(
@@ -842,6 +854,71 @@ export class UIScene extends Phaser.Scene {
 
       container.setData('skillType', skillType);
       this.skillButtons.set(skillType, container);
+      this.devPanel.add(container);
+    });
+  }
+
+  private createMapButtons(startX: number, startY: number, maxWidth: number): void {
+    const buttonHeight = 35;
+    const padding = 5;
+    const currentMap = this.gameScene.getCurrentMap();
+
+    const allMaps = [MapType.Elderwood, MapType.Moonlit, MapType.Starfall];
+
+    allMaps.forEach((mapType, index) => {
+      const mapDef = MAP_DEFINITIONS[mapType];
+      const y = startY + index * (buttonHeight + padding);
+      const isCurrent = mapType === currentMap;
+
+      const container = this.add.container(startX, y);
+
+      // 배경 - 현재 맵은 강조 표시
+      const bg = this.add.rectangle(maxWidth / 2, buttonHeight / 2, maxWidth, buttonHeight,
+        isCurrent ? 0x00ff00 : 0x444444, isCurrent ? 0.3 : 0.9);
+      bg.setStrokeStyle(2, isCurrent ? 0x00ff00 : 0x666666);
+
+      // 맵 이름
+      const nameText = this.add.text(10, buttonHeight / 2, mapDef.name, {
+        fontFamily: 'Arial',
+        fontSize: '14px',
+        color: isCurrent ? '#00ff00' : '#ffffff',
+        fontStyle: isCurrent ? 'bold' : 'normal',
+      }).setOrigin(0, 0.5);
+
+      // 현재 맵 표시
+      if (isCurrent) {
+        const currentBadge = this.add.text(maxWidth - 10, buttonHeight / 2, '●', {
+          fontFamily: 'Arial',
+          fontSize: '12px',
+          color: '#00ff00',
+        }).setOrigin(1, 0.5);
+        container.add(currentBadge);
+      }
+
+      container.add([bg, nameText]);
+
+      // 인터랙티브 설정
+      bg.setInteractive({ useHandCursor: true });
+
+      bg.on('pointerover', () => {
+        if (!isCurrent) {
+          bg.setFillStyle(0x555555, 0.9);
+        }
+      });
+
+      bg.on('pointerout', () => {
+        if (!isCurrent) {
+          bg.setFillStyle(0x444444, 0.9);
+        }
+      });
+
+      bg.on('pointerdown', () => {
+        if (!isCurrent) {
+          // 맵 변경 (게임 재시작)
+          this.gameScene.changeMap(mapType);
+        }
+      });
+
       this.devPanel.add(container);
     });
   }

@@ -12,6 +12,8 @@ import type { ComponentClass } from '../ecs/Component';
 import { World } from '../ecs/World';
 import { createPlayer } from '../entities';
 import { PASSIVE_UPGRADES, WEAPON_DEFINITIONS, type UpgradeOption } from '../game/WeaponData';
+import { MAP_DEFINITIONS, MapType, DEFAULT_MAP } from '../game/MapData';
+import { createMapData, type VampireSurvivorsMapData } from '../game/ProceduralMapData';
 import {
   CameraSystem,
   CollisionSystem,
@@ -38,12 +40,15 @@ export class GameScene extends Phaser.Scene {
   private isPaused = false;
   private gameOver = false;
 
-  private background!: Phaser.GameObjects.TileSprite;
+  private currentMap: MapType = DEFAULT_MAP;
+  private mapData!: VampireSurvivorsMapData;
+  private tileContainer!: Phaser.GameObjects.Container;
+  private objectContainer!: Phaser.GameObjects.Container;
+  private obstacleSprites: Phaser.GameObjects.Sprite[] = [];
 
   // 개발자 모드 관련
   private showColliders = false;
   private colliderGraphics!: Phaser.GameObjects.Graphics;
-  private activeSkills: WeaponType[] = [];
 
   constructor() {
     super({ key: 'GameScene' });
@@ -54,7 +59,6 @@ export class GameScene extends Phaser.Scene {
     this.isPaused = false;
     this.gameOver = false;
     this.showColliders = false;
-    this.activeSkills = [];
 
     this.createBackground();
     this.setupSystems();
@@ -68,16 +72,118 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createBackground(): void {
-    const graphics = this.add.graphics();
-    graphics.fillStyle(0x2a2a4a, 1);
-    graphics.fillRect(-2000, -2000, 4000, 4000);
+    // Generate map data based on current map type
+    const seed = this.getMapSeed(this.currentMap);
+    this.mapData = createMapData(seed);
 
-    for (let x = -2000; x < 2000; x += 50) {
-      for (let y = -2000; y < 2000; y += 50) {
-        graphics.fillStyle(0x3a3a5a, 1);
-        graphics.fillRect(x, y, 2, 2);
+    // Create containers for tiles and objects
+    this.tileContainer = this.add.container(0, 0);
+    this.tileContainer.setDepth(-100);
+
+    this.objectContainer = this.add.container(0, 0);
+    this.objectContainer.setDepth(0);
+
+    // Render ground tiles
+    this.renderGroundTiles();
+
+    // Render map objects
+    this.renderMapObjects();
+  }
+
+  private getMapSeed(mapType: MapType): number {
+    // Different seed for each map to generate different layouts
+    switch (mapType) {
+      case MapType.Elderwood:
+        return 42;
+      case MapType.Moonlit:
+        return 12345;
+      case MapType.Starfall:
+        return 99999;
+      default:
+        return 42;
+    }
+  }
+
+  private renderGroundTiles(): void {
+    const { groundTilemap, config } = this.mapData;
+    const { tileSize } = config;
+
+    // Render each tile
+    for (let y = 0; y < groundTilemap.length; y++) {
+      for (let x = 0; x < groundTilemap[y].length; x++) {
+        const tileId = groundTilemap[y][x];
+        const tileKey = `tile_${String(tileId).padStart(2, '0')}`;
+
+        const tileSprite = this.add.image(
+          x * tileSize,
+          y * tileSize,
+          tileKey
+        );
+        tileSprite.setOrigin(0, 0);
+        this.tileContainer.add(tileSprite);
       }
     }
+  }
+
+  private renderMapObjects(): void {
+    const { objects } = this.mapData;
+
+    // Sort objects by depth for proper layering
+    const sortedObjects = [...objects].sort((a, b) => {
+      const depthA = typeof a.depth === 'number' ? a.depth : a.y;
+      const depthB = typeof b.depth === 'number' ? b.depth : b.y;
+      return depthA - depthB;
+    });
+
+    // Clear previous obstacles
+    this.obstacleSprites = [];
+
+    for (const obj of sortedObjects) {
+      const textureKey = this.getTextureKeyFromAssetPath(obj.assetKey);
+
+      if (!textureKey) {
+        console.warn(`[GameScene] Unknown texture for asset: ${obj.assetKey}`);
+        continue;
+      }
+
+      const sprite = this.add.sprite(obj.x, obj.y, textureKey);
+      sprite.setDepth(typeof obj.depth === 'number' ? obj.depth : obj.y);
+
+      this.objectContainer.add(sprite);
+
+      // Track obstacles for collision
+      if (obj.collision) {
+        this.obstacleSprites.push(sprite);
+      }
+    }
+  }
+
+  private getTextureKeyFromAssetPath(assetPath: string): string | null {
+    // Convert asset path to loaded texture key
+    // e.g., "free_fields_tileset.../objects/bush/1.png" -> "bush_1"
+    const pathParts = assetPath.split('/');
+    const fileName = pathParts[pathParts.length - 1]; // e.g., "1.png"
+    const category = pathParts[pathParts.length - 2]; // e.g., "bush"
+
+    const fileNumber = fileName.replace('.png', ''); // e.g., "1"
+
+    // Handle different categories
+    if (category === 'bush') return `bush_${fileNumber}`;
+    if (category === 'grass') return `grass_${fileNumber}`;
+    if (category === 'flower') return `flower_${fileNumber}`;
+    if (category === 'stone') return `stone_${fileNumber}`;
+    if (category === 'decor') {
+      if (fileName.startsWith('tree')) return `tree_${fileNumber.replace('tree', '')}`;
+      if (fileName.startsWith('log')) return `log_${fileNumber.replace('log', '')}`;
+      if (fileName.startsWith('box')) return `box_${fileNumber.replace('box', '')}`;
+      if (fileName.startsWith('dirt')) return `dirt_${fileNumber.replace('dirt', '')}`;
+    }
+    if (category === 'fence') return `fence_${fileNumber}`;
+    if (category === 'shadow') return `shadow_${fileNumber}`;
+    if (category === 'camp') return `camp_${fileNumber}`;
+    if (category === 'campfire') return 'campfire';
+
+    return null;
   }
 
   private setupSystems(): void {
@@ -115,17 +221,19 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createPlayer(): void {
+    const { spawnX, spawnY } = this.mapData.config;
     createPlayer(this.world, this, {
-      x: 0,
-      y: 0,
+      x: spawnX,
+      y: spawnY,
       health: 100,
       moveSpeed: 150,
     });
   }
 
   private setupCamera(): void {
+    const { width, height } = this.mapData.config;
     this.cameras.main.setBackgroundColor(0x1a1a2e);
-    this.cameras.main.setBounds(-2000, -2000, 4000, 4000);
+    this.cameras.main.setBounds(0, 0, width, height);
     this.cameraSystem.setCamera(this.cameras.main);
   }
 
@@ -200,6 +308,16 @@ export class GameScene extends Phaser.Scene {
   restartGame(): void {
     this.scene.stop('UIScene');
     this.world.clear();
+
+    // Clean up map containers
+    if (this.tileContainer) {
+      this.tileContainer.destroy();
+    }
+    if (this.objectContainer) {
+      this.objectContainer.destroy();
+    }
+    this.obstacleSprites = [];
+
     this.scene.restart();
   }
 
@@ -246,7 +364,7 @@ export class GameScene extends Phaser.Scene {
     health: HealthComponent | undefined,
     velocity: VelocityComponent | undefined,
     passiveId: string,
-    level: number
+    _level: number
   ): void {
     const passive = PASSIVE_UPGRADES.find((p) => p.id === passiveId);
     if (!passive) return;
@@ -338,7 +456,6 @@ export class GameScene extends Phaser.Scene {
   }
 
   setActiveSkills(skills: WeaponType[]): void {
-    this.activeSkills = skills;
     this.weaponSystem.setActiveSkills(skills);
   }
 
@@ -358,6 +475,27 @@ export class GameScene extends Phaser.Scene {
     const def = WEAPON_DEFINITIONS[weaponType];
     weaponComp.addWeapon(weaponType, def.baseStats);
     console.log(`[DevMode] 무기 추가: ${def.name}`);
+  }
+
+  getCurrentMap(): MapType {
+    return this.currentMap;
+  }
+
+  changeMap(mapType: MapType): void {
+    this.currentMap = mapType;
+    console.log(`[GameScene] 맵 변경: ${MAP_DEFINITIONS[mapType].name}`);
+
+    // Clean up existing map
+    if (this.tileContainer) {
+      this.tileContainer.destroy();
+    }
+    if (this.objectContainer) {
+      this.objectContainer.destroy();
+    }
+    this.obstacleSprites = [];
+
+    // 게임 재시작
+    this.scene.restart();
   }
 
   private drawColliders(): void {

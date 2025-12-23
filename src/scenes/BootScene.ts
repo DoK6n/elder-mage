@@ -37,6 +37,84 @@ export class BootScene extends Phaser.Scene {
     // Load character and monster sprites
     this.loadCharacterSprites();
     this.loadMonsterSprites();
+    this.loadMapTiles();
+  }
+
+  private loadMapTiles(): void {
+    const basePath = 'assets/map/free_fields_tileset_pixel_art_for_tower_defense';
+
+    // Load all 64 grass tiles (fieldstile_01.png ~ fieldstile_64.png)
+    for (let i = 1; i <= 64; i++) {
+      const tileNumber = String(i).padStart(2, '0');
+      const key = `tile_${tileNumber}`;
+      this.load.image(key, `${basePath}/tiles/fieldstile_${tileNumber}.png`);
+    }
+
+    // Load object textures
+    // Bushes
+    for (let i = 1; i <= 6; i++) {
+      this.load.image(`bush_${i}`, `${basePath}/objects/bush/${i}.png`);
+    }
+
+    // Grass tufts
+    for (let i = 1; i <= 6; i++) {
+      this.load.image(`grass_${i}`, `${basePath}/objects/grass/${i}.png`);
+    }
+
+    // Flowers
+    for (let i = 1; i <= 12; i++) {
+      this.load.image(`flower_${i}`, `${basePath}/objects/flower/${i}.png`);
+    }
+
+    // Stones
+    for (let i = 1; i <= 16; i++) {
+      this.load.image(`stone_${i}`, `${basePath}/objects/stone/${i}.png`);
+    }
+
+    // Trees
+    this.load.image('tree_1', `${basePath}/objects/decor/tree1.png`);
+    this.load.image('tree_2', `${basePath}/objects/decor/tree2.png`);
+
+    // Logs
+    for (let i = 1; i <= 4; i++) {
+      this.load.image(`log_${i}`, `${basePath}/objects/decor/log${i}.png`);
+    }
+
+    // Boxes
+    for (let i = 1; i <= 4; i++) {
+      this.load.image(`box_${i}`, `${basePath}/objects/decor/box${i}.png`);
+    }
+
+    // Dirt patches
+    for (let i = 1; i <= 6; i++) {
+      this.load.image(`dirt_${i}`, `${basePath}/objects/decor/dirt${i}.png`);
+    }
+
+    // Fences
+    for (let i = 1; i <= 10; i++) {
+      this.load.image(`fence_${i}`, `${basePath}/objects/fence/${i}.png`);
+    }
+
+    // Shadows
+    for (let i = 1; i <= 6; i++) {
+      this.load.image(`shadow_${i}`, `${basePath}/objects/shadow/${i}.png`);
+    }
+
+    // Camp objects
+    for (let i = 1; i <= 6; i++) {
+      this.load.image(`camp_${i}`, `${basePath}/objects/camp/${i}.png`);
+    }
+
+    // Animated campfire
+    this.load.spritesheet('campfire', `${basePath}/animated_objects/campfire/1.png`, {
+      frameWidth: 32,
+      frameHeight: 32,
+    });
+
+    // Flags
+    for (let i = 1; i <= 5; i++) {
+      this.load.image(`flag_${i}`, `${basePath}/animated_objects/flag/${i}.png`);
+    }
   }
 
   private loadCharacterSprites(): void {
