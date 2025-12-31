@@ -164,6 +164,12 @@ export class BootScene extends Phaser.Scene {
       frameWidth: 100,
       frameHeight: 250,
     });
+
+    // Load skill sprites
+    this.load.spritesheet('shield', 'assets/skills/shield.png', {
+      frameWidth: 72,
+      frameHeight: 72,
+    });
   }
 
   private loadMonsterSprites(): void {
@@ -337,6 +343,14 @@ export class BootScene extends Phaser.Scene {
       key: 'ogre-idle',
       frames: this.anims.generateFrameNumbers('enemy_ogre', { start: 0, end: 3 }),
       frameRate: 6,
+      repeat: -1,
+    });
+
+    // Shield animation
+    this.anims.create({
+      key: 'shield-loop',
+      frames: this.anims.generateFrameNumbers('shield', { start: 0, end: 7 }),
+      frameRate: 12,
       repeat: -1,
     });
   }

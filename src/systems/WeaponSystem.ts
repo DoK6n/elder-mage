@@ -46,8 +46,14 @@ export class WeaponSystem extends System {
     for (const entity of entities) {
       const transform = entity.getComponent(TransformComponent)!;
       const weapon = entity.getComponent(WeaponComponent)!;
+      const playerComp = entity.getComponent(PlayerComponent);
 
       weapon.updateCooldown(dt);
+
+      // 실드 지속시간 업데이트
+      if (playerComp) {
+        playerComp.updateShield(dt);
+      }
 
       // 모든 무기를 순회하며 발사 가능한 무기 발사
       for (let i = 0; i < weapon.weapons.length; i++) {
@@ -76,7 +82,6 @@ export class WeaponSystem extends System {
 
     // 특수 무기 처리
     switch (weaponSlot.type) {
-      case WeaponType.WaterShield:
       case WeaponType.Earthquake:
         this.createAuraAttack(owner, transform, weaponSlot, textureKey);
         return;
@@ -123,6 +128,10 @@ export class WeaponSystem extends System {
 
       case WeaponType.Meteor:
         this.createMeteorStrike(owner, transform, weaponSlot);
+        return;
+
+      case WeaponType.WaterShield:
+        this.createWaterShieldDefense(owner, transform, weaponSlot);
         return;
 
       default:
@@ -1134,5 +1143,85 @@ export class WeaponSystem extends System {
         });
       });
     }
+  }
+
+  // 워터실드 - 방어형 실드 (데미지 흡수)
+  private createWaterShieldDefense(
+    owner: Entity,
+    transform: TransformComponent,
+    weaponSlot: WeaponSlot
+  ): void {
+    if (!this.scene) return;
+
+    const playerComp = owner.getComponent(PlayerComponent);
+    if (!playerComp) return;
+
+    // 실드량과 지속시간
+    const shieldAmount = Math.floor(weaponSlot.stats.damage);
+    const duration = weaponSlot.stats.duration;
+
+    // 플레이어에게 실드 적용
+    playerComp.activateShield(shieldAmount, duration);
+
+    // 실드 스프라이트 (8프레임 애니메이션)
+    const shieldSprite = this.scene.add.sprite(transform.x, transform.y, 'shield');
+    shieldSprite.setDepth(10);
+    shieldSprite.setScale(1.8); // 캐릭터 주변을 감쌀 수 있는 크기
+    shieldSprite.setAlpha(0);
+    shieldSprite.play('shield-loop'); // 애니메이션 재생
+
+    // 실드 활성화 애니메이션 (페이드인)
+    this.scene.tweens.add({
+      targets: shieldSprite,
+      alpha: 0.85,
+      scaleX: 2.0,
+      scaleY: 2.0,
+      duration: 300,
+      ease: 'Back.easeOut',
+    });
+
+    // 실드 지속시간 동안 플레이어 따라다니기
+    const updateEvent = this.scene.time.addEvent({
+      delay: 16, // 약 60fps
+      callback: () => {
+        if (!playerComp.shieldActive || !shieldSprite.active) {
+          // 실드 종료
+          if (shieldSprite.active) {
+            shieldSprite.destroy();
+          }
+          updateEvent.destroy();
+          return;
+        }
+
+        const currentTransform = owner.getComponent(TransformComponent);
+        if (!currentTransform) return;
+
+        // 실드 스프라이트 위치 업데이트
+        shieldSprite.setPosition(currentTransform.x, currentTransform.y);
+
+        // 실드량에 따라 투명도 조절
+        const shieldPercent = playerComp.getShieldPercent();
+        shieldSprite.setAlpha(0.4 + shieldPercent * 0.5);
+      },
+      repeat: -1,
+    });
+
+    // 실드 종료 시 페이드아웃 (duration 후)
+    this.scene.time.delayedCall(duration * 1000, () => {
+      if (shieldSprite.active) {
+        this.scene?.tweens.add({
+          targets: shieldSprite,
+          alpha: 0,
+          scaleX: 2.5,
+          scaleY: 2.5,
+          duration: 300,
+          onComplete: () => {
+            shieldSprite.destroy();
+          },
+        });
+      }
+
+      updateEvent.destroy();
+    });
   }
 }

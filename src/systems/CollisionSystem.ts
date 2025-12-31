@@ -159,16 +159,82 @@ export class CollisionSystem extends System {
 
     const playerHealth = playerEntity.getComponent(HealthComponent);
     const playerTransform = playerEntity.getComponent(TransformComponent);
+    const playerComp = playerEntity.getComponent(PlayerComponent);
     const enemy = enemyEntity.getComponent(EnemyComponent);
 
     if (playerHealth && playerTransform && enemy && enemy.canAttack()) {
-      if (playerHealth.damage(enemy.damage)) {
-        playerHealth.setInvincible(0.5);
-        // Show damage number for player (red)
-        this.showDamageNumber(playerTransform.x, playerTransform.y, enemy.damage, true, false);
+      let actualDamage = enemy.damage;
+
+      // 실드가 활성화된 경우 데미지 흡수
+      if (playerComp && playerComp.shieldActive) {
+        const absorbedDamage = enemy.damage - playerComp.absorbDamage(enemy.damage);
+        actualDamage = enemy.damage - absorbedDamage;
+
+        // 실드가 데미지를 흡수한 경우 이펙트 표시
+        if (absorbedDamage > 0) {
+          this.showShieldAbsorbEffect(playerTransform.x, playerTransform.y, absorbedDamage);
+        }
+      }
+
+      // 남은 데미지가 있으면 플레이어에게 적용
+      if (actualDamage > 0) {
+        if (playerHealth.damage(actualDamage)) {
+          playerHealth.setInvincible(0.5);
+          // Show damage number for player (red)
+          this.showDamageNumber(playerTransform.x, playerTransform.y, actualDamage, true, false);
+        }
       }
       enemy.attack();
     }
+  }
+
+  private showShieldAbsorbEffect(x: number, y: number, amount: number): void {
+    if (!this.scene) return;
+
+    // 실드 흡수 텍스트 (파란색)
+    const offsetX = (Math.random() - 0.5) * 30;
+    const offsetY = -30 + (Math.random() - 0.5) * 10;
+
+    const absorbText = this.scene.add.text(x + offsetX, y + offsetY, `SHIELD -${Math.floor(amount)}`, {
+      fontFamily: 'Arial',
+      fontSize: '14px',
+      color: '#00bfff',
+      stroke: '#004466',
+      strokeThickness: 3,
+      fontStyle: 'bold',
+    });
+
+    absorbText.setOrigin(0.5, 0.5);
+    absorbText.setDepth(101);
+
+    // 애니메이션
+    this.scene.tweens.add({
+      targets: absorbText,
+      y: absorbText.y - 40,
+      alpha: 0,
+      duration: 600,
+      ease: 'Power2',
+      onComplete: () => {
+        absorbText.destroy();
+      },
+    });
+
+    // 실드 충격파 효과
+    const shieldWave = this.scene.add.circle(x, y, 30, 0x00bfff, 0.4);
+    shieldWave.setDepth(9);
+    shieldWave.setStrokeStyle(2, 0x00bfff, 0.8);
+
+    this.scene.tweens.add({
+      targets: shieldWave,
+      scaleX: 2,
+      scaleY: 2,
+      alpha: 0,
+      duration: 300,
+      ease: 'Power2',
+      onComplete: () => {
+        shieldWave.destroy();
+      },
+    });
   }
 
   private handlePlayerPickupCollision(entityA: Entity, entityB: Entity): void {

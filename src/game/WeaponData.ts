@@ -121,20 +121,20 @@ export const WEAPON_DEFINITIONS: Record<WeaponType, WeaponDefinition> = {
   [WeaponType.WaterShield]: {
     type: WeaponType.WaterShield,
     name: 'Water Shield',
-    description: '주변에 물의 방패 생성. 접근하는 적 데미지',
+    description: '물의 방패 생성. 일정량의 데미지 흡수',
     baseStats: {
-      damage: 4,
-      cooldown: 0.5,
+      damage: 20, // 실드 흡수량
+      cooldown: 12.0,
       projectileSpeed: 0,
       projectileCount: 1,
-      area: 1.8,
-      duration: 0.1,
-      pierce: 999,
+      area: 1.0,
+      duration: 5, // 실드 지속시간
+      pierce: 1,
     },
-    color: 0x4169e1,
+    color: 0x00bfff,
     maxLevel: 8,
     element: ElementType.Water,
-    textureKey: 'proj_watershield',
+    textureKey: 'shield',
   },
   [WeaponType.Blizzard]: {
     type: WeaponType.Blizzard,
@@ -421,6 +421,7 @@ export function generateUpgradeOptions(
     WeaponType.Fireball,
     WeaponType.IceBolt,
     WeaponType.Meteor,
+    WeaponType.WaterShield,
   ];
 
   // Add weapon options (new weapons or upgrades)
@@ -438,6 +439,9 @@ export function generateUpgradeOptions(
         // 메테오는 특별한 업그레이드 (크기 5%만 증가, 투사체 증가 없음)
         if (weaponType === WeaponType.Meteor) {
           upgradeDesc = `Lv${nextLevel}: +20% 데미지, -5% 쿨다운, +5% 범위`;
+        } else if (weaponType === WeaponType.WaterShield) {
+          // 방어형 실드는 실드량과 지속시간 증가
+          upgradeDesc = `Lv${nextLevel}: +50% 실드량, -8% 쿨다운, +10% 지속시간`;
         } else {
           // 다른 스킬은 짝수 레벨에서 투사체 증가
           if (nextLevel % 2 === 0) {

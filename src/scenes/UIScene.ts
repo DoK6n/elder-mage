@@ -23,7 +23,7 @@ const SKILL_ICON_MAP: Record<WeaponType, SkillIconInfo> = {
   [WeaponType.FireWall]: { textureKey: 'proj_firewall', color: 0xff6600 },
   [WeaponType.Meteor]: { textureKey: 'meteor-effect', frame: 10, color: 0xff2200 },
   [WeaponType.IceBolt]: { textureKey: 'ice-effect', frame: 5, color: 0x1e90ff },
-  [WeaponType.WaterShield]: { textureKey: 'proj_watershield', color: 0x4169e1 },
+  [WeaponType.WaterShield]: { textureKey: 'shield', frame: 0, color: 0x00bfff },
   [WeaponType.Blizzard]: { textureKey: 'proj_blizzard', color: 0xadd8e6 },
   [WeaponType.WindBlade]: { textureKey: 'proj_wind', color: 0x32cd32 },
   [WeaponType.Tornado]: { textureKey: 'proj_tornado', color: 0x228b22 },
