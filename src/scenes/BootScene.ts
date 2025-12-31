@@ -42,12 +42,33 @@ export class BootScene extends Phaser.Scene {
 
   private loadMapTiles(): void {
     const basePath = 'assets/map/free_fields_tileset_pixel_art_for_tower_defense';
+    const riverPath = 'assets/map/river_tileset_pixel_art_for_tower_defense';
 
     // Load all 64 grass tiles (fieldstile_01.png ~ fieldstile_64.png)
     for (let i = 1; i <= 64; i++) {
       const tileNumber = String(i).padStart(2, '0');
       const key = `tile_${tileNumber}`;
       this.load.image(key, `${basePath}/tiles/fieldstile_${tileNumber}.png`);
+    }
+
+    // Load river tiles for ponds (rivertile_01.png ~ rivertile_64.png)
+    for (let i = 1; i <= 64; i++) {
+      const tileNumber = String(i).padStart(2, '0');
+      const key = `river_tile_${tileNumber}`;
+      this.load.image(key, `${riverPath}/tiles/rivertile_${tileNumber}.png`);
+    }
+
+    // Load river grass objects (1-26)
+    for (let i = 1; i <= 26; i++) {
+      this.load.image(`river_grass_${i}`, `${riverPath}/objects/grass/${i}.png`);
+    }
+
+    // Load water effects
+    this.load.image('effect_circlewave1', `${riverPath}/effects/circlewave1.png`);
+    this.load.image('effect_circlewave2', `${riverPath}/effects/circlewave2.png`);
+    for (let i = 1; i <= 4; i++) {
+      this.load.image(`effect_splash${i}`, `${riverPath}/effects/splash${i}.png`);
+      this.load.image(`effect_wave${i}`, `${riverPath}/effects/wave${i}.png`);
     }
 
     // Load object textures

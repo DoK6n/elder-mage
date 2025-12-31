@@ -46,6 +46,13 @@ export class GameScene extends Phaser.Scene {
   private objectContainer!: Phaser.GameObjects.Container;
   private obstacleSprites: Phaser.GameObjects.Sprite[] = [];
 
+  // 연못 관련
+  private pondContainer!: Phaser.GameObjects.Container;
+  private pondAreas: { x: number; y: number; width: number; height: number }[] = [];
+  private lastWaveTime = 0;
+  private lastPlayerX = 0;
+  private lastPlayerY = 0;
+
   // 개발자 모드 관련
   private showColliders = false;
   private colliderGraphics!: Phaser.GameObjects.Graphics;
@@ -80,11 +87,17 @@ export class GameScene extends Phaser.Scene {
     this.tileContainer = this.add.container(0, 0);
     this.tileContainer.setDepth(-100);
 
+    this.pondContainer = this.add.container(0, 0);
+    this.pondContainer.setDepth(-50);
+
     this.objectContainer = this.add.container(0, 0);
     this.objectContainer.setDepth(0);
 
     // Render ground tiles
     this.renderGroundTiles();
+
+    // Render ponds
+    this.renderPonds();
 
     // Render map objects
     this.renderMapObjects();
@@ -169,7 +182,13 @@ export class GameScene extends Phaser.Scene {
 
     // Handle different categories
     if (category === 'bush') return `bush_${fileNumber}`;
-    if (category === 'grass') return `grass_${fileNumber}`;
+    if (category === 'grass') {
+      // river_tileset grass인지 확인
+      if (assetPath.includes('river_tileset')) {
+        return `river_grass_${fileNumber}`;
+      }
+      return `grass_${fileNumber}`;
+    }
     if (category === 'flower') return `flower_${fileNumber}`;
     if (category === 'stone') return `stone_${fileNumber}`;
     if (category === 'decor') {
@@ -184,6 +203,159 @@ export class GameScene extends Phaser.Scene {
     if (category === 'campfire') return 'campfire';
 
     return null;
+  }
+
+  private renderPonds(): void {
+    const { ponds } = this.mapData;
+    this.pondAreas = [];
+
+    for (const pond of ponds) {
+      // 연못 영역 저장 (플레이어 물 감지용)
+      this.pondAreas.push({
+        x: pond.x,
+        y: pond.y,
+        width: pond.width * 32,
+        height: pond.height * 32,
+      });
+
+      // 연못 타일 렌더링
+      for (const tile of pond.tiles) {
+        const tileKey = `river_tile_${String(tile.tileId).padStart(2, '0')}`;
+        const tileSprite = this.add.image(tile.x, tile.y, tileKey);
+        tileSprite.setOrigin(0, 0);
+        this.pondContainer.add(tileSprite);
+      }
+
+      // 연못 이펙트 시작 (랜덤 서클웨이브, 스플래시)
+      this.startPondEffects(pond.x, pond.y, pond.width * 32, pond.height * 32);
+    }
+  }
+
+  private startPondEffects(pondX: number, pondY: number, pondWidth: number, pondHeight: number): void {
+    // 주기적으로 연못에 이펙트 표시
+    this.time.addEvent({
+      delay: 2000 + Math.random() * 3000, // 2-5초마다
+      callback: () => {
+        if (this.gameOver || this.isPaused) return;
+
+        // 연못 내 랜덤 위치
+        const effectX = pondX + 20 + Math.random() * (pondWidth - 40);
+        const effectY = pondY + 20 + Math.random() * (pondHeight - 40);
+
+        // 랜덤하게 서클웨이브 또는 스플래시
+        if (Math.random() > 0.5) {
+          this.showCircleWaveEffect(effectX, effectY);
+        } else {
+          this.showSplashEffect(effectX, effectY);
+        }
+      },
+      repeat: -1,
+    });
+  }
+
+  private showCircleWaveEffect(x: number, y: number): void {
+    const waveSprite = this.add.image(x, y, 'effect_circlewave1');
+    waveSprite.setDepth(-40);
+    waveSprite.setAlpha(0.8);
+    waveSprite.setScale(0.5);
+
+    this.tweens.add({
+      targets: waveSprite,
+      scaleX: 2,
+      scaleY: 2,
+      alpha: 0,
+      duration: 1500,
+      ease: 'Power2',
+      onComplete: () => waveSprite.destroy(),
+    });
+
+    // 두 번째 웨이브 (지연)
+    this.time.delayedCall(300, () => {
+      const wave2 = this.add.image(x, y, 'effect_circlewave2');
+      wave2.setDepth(-40);
+      wave2.setAlpha(0.6);
+      wave2.setScale(0.3);
+
+      this.tweens.add({
+        targets: wave2,
+        scaleX: 1.5,
+        scaleY: 1.5,
+        alpha: 0,
+        duration: 1200,
+        ease: 'Power2',
+        onComplete: () => wave2.destroy(),
+      });
+    });
+  }
+
+  private showSplashEffect(x: number, y: number): void {
+    // 스플래시 애니메이션 (4프레임)
+    const splashSprite = this.add.image(x, y, 'effect_splash1');
+    splashSprite.setDepth(-40);
+    splashSprite.setAlpha(0.9);
+
+    let frame = 1;
+    const splashTimer = this.time.addEvent({
+      delay: 100,
+      callback: () => {
+        frame++;
+        if (frame <= 4) {
+          splashSprite.setTexture(`effect_splash${frame}`);
+        } else {
+          splashSprite.destroy();
+          splashTimer.destroy();
+        }
+      },
+      repeat: 4,
+    });
+  }
+
+  private isPlayerInWater(x: number, y: number): boolean {
+    for (const pond of this.pondAreas) {
+      if (x >= pond.x && x <= pond.x + pond.width &&
+          y >= pond.y && y <= pond.y + pond.height) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private showPlayerWaveEffect(x: number, y: number, directionX: number, directionY: number): void {
+    // 이동 방향에 따라 wave 이펙트 표시
+    const waveSprite = this.add.image(x, y, 'effect_wave1');
+    waveSprite.setDepth(-35);
+    waveSprite.setAlpha(0.7);
+    waveSprite.setScale(0.8);
+
+    // 이동 방향에 따라 회전
+    const angle = Math.atan2(directionY, directionX);
+    waveSprite.setRotation(angle);
+
+    // wave 애니메이션 (4프레임)
+    let frame = 1;
+    const waveTimer = this.time.addEvent({
+      delay: 80,
+      callback: () => {
+        frame++;
+        if (frame <= 4) {
+          waveSprite.setTexture(`effect_wave${frame}`);
+        }
+      },
+      repeat: 3,
+    });
+
+    // 페이드아웃
+    this.tweens.add({
+      targets: waveSprite,
+      alpha: 0,
+      y: y - 10,
+      duration: 400,
+      ease: 'Power2',
+      onComplete: () => {
+        waveTimer.destroy();
+        waveSprite.destroy();
+      },
+    });
   }
 
   private setupSystems(): void {
@@ -241,7 +413,7 @@ export class GameScene extends Phaser.Scene {
     this.scene.launch('UIScene', { gameScene: this });
   }
 
-  update(_time: number, delta: number): void {
+  update(time: number, delta: number): void {
     if (this.isPaused || this.gameOver) return;
 
     const dt = delta / 1000;
@@ -249,8 +421,42 @@ export class GameScene extends Phaser.Scene {
 
     this.checkGameOver();
 
+    // 플레이어가 물 위에서 이동할 때 wave 이펙트
+    this.updatePlayerWaterEffects(time);
+
     // 개발자 모드: 충돌 범위 그리기
     this.drawColliders();
+  }
+
+  private updatePlayerWaterEffects(time: number): void {
+    const players = this.world.getEntitiesWithComponents(
+      PlayerComponent as ComponentClass<PlayerComponent>,
+      TransformComponent as ComponentClass<TransformComponent>
+    );
+    if (players.length === 0) return;
+
+    const player = players[0];
+    const transform = player.getComponent(TransformComponent as ComponentClass<TransformComponent>)! as TransformComponent;
+
+    const playerX = transform.x;
+    const playerY = transform.y;
+
+    // 이동 방향 계산
+    const dirX = playerX - this.lastPlayerX;
+    const dirY = playerY - this.lastPlayerY;
+    const isMoving = Math.abs(dirX) > 0.5 || Math.abs(dirY) > 0.5;
+
+    // 플레이어가 물 위에 있고 이동 중이면 wave 이펙트 표시
+    if (isMoving && this.isPlayerInWater(playerX, playerY)) {
+      // 150ms마다 wave 이펙트
+      if (time - this.lastWaveTime > 150) {
+        this.showPlayerWaveEffect(playerX, playerY + 15, dirX, dirY);
+        this.lastWaveTime = time;
+      }
+    }
+
+    this.lastPlayerX = playerX;
+    this.lastPlayerY = playerY;
   }
 
   private checkGameOver(): void {

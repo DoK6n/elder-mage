@@ -11,10 +11,12 @@
 // 리소스 경로 정의
 // ============================================
 export const ASSET_BASE_PATH = 'free_fields_tileset_pixel_art_for_tower_defense';
+export const RIVER_ASSET_PATH = 'river_tileset_pixel_art_for_tower_defense';
 
 export const AssetPaths = {
   tiles: {
     base: `${ASSET_BASE_PATH}/tiles`,
+    river: `${RIVER_ASSET_PATH}/tiles`,
     // 기본 잔디 타일 (주로 사용할 것들)
     grass: Array.from({ length: 64 }, (_, i) => `fieldstile_${String(i + 1).padStart(2, '0')}.png`),
   },
@@ -33,6 +35,8 @@ export const AssetPaths = {
     fence: Array.from({ length: 10 }, (_, i) => `${ASSET_BASE_PATH}/objects/fence/${i + 1}.png`),
     shadow: Array.from({ length: 6 }, (_, i) => `${ASSET_BASE_PATH}/objects/shadow/${i + 1}.png`),
     camp: Array.from({ length: 6 }, (_, i) => `${ASSET_BASE_PATH}/objects/camp/${i + 1}.png`),
+    // river_tileset 풀 오브젝트
+    riverGrass: Array.from({ length: 26 }, (_, i) => `${RIVER_ASSET_PATH}/objects/grass/${i + 1}.png`),
   },
   animated: {
     campfire: [
@@ -40,6 +44,11 @@ export const AssetPaths = {
       `${ASSET_BASE_PATH}/animated_objects/campfire/2.png`,
     ],
     flag: Array.from({ length: 5 }, (_, i) => `${ASSET_BASE_PATH}/animated_objects/flag/${i + 1}.png`),
+  },
+  effects: {
+    circlewave: [`${RIVER_ASSET_PATH}/effects/circlewave1.png`, `${RIVER_ASSET_PATH}/effects/circlewave2.png`],
+    splash: Array.from({ length: 4 }, (_, i) => `${RIVER_ASSET_PATH}/effects/splash${i + 1}.png`),
+    wave: Array.from({ length: 4 }, (_, i) => `${RIVER_ASSET_PATH}/effects/wave${i + 1}.png`),
   },
 } as const;
 
@@ -73,6 +82,16 @@ export interface AnimatedObject extends MapObject {
   frames: readonly string[];
 }
 
+// 연못 데이터 인터페이스
+export interface PondData {
+  id: string;
+  x: number;
+  y: number;
+  width: number;  // 타일 개수
+  height: number; // 타일 개수
+  tiles: { x: number; y: number; tileId: number }[];
+}
+
 // ============================================
 // 맵 설정
 // ============================================
@@ -97,21 +116,36 @@ export const MapConfig = {
 } as const;
 
 // ============================================
-// 타일 가중치 (랜덤 배치 시 사용)
+// 타일 ID 정의
+// ============================================
+export const TileId = {
+  GRASS: 38,           // 순수 잔디
+  // 도로 타일 (free_fields_tileset)
+  ROAD_CENTER: 5,      // 도로 중앙
+  ROAD_H: 6,           // 수평 도로
+  ROAD_V: 13,          // 수직 도로
+  ROAD_CORNER_TL: 1,   // 좌상단 코너
+  ROAD_CORNER_TR: 3,   // 우상단 코너
+  ROAD_CORNER_BL: 17,  // 좌하단 코너
+  ROAD_CORNER_BR: 19,  // 우하단 코너
+  ROAD_T_UP: 2,        // T자 위
+  ROAD_T_DOWN: 18,     // T자 아래
+  ROAD_T_LEFT: 9,      // T자 좌
+  ROAD_T_RIGHT: 11,    // T자 우
+  ROAD_CROSS: 10,      // 십자
+  // 도로-잔디 경계
+  ROAD_EDGE_TOP: 25,
+  ROAD_EDGE_BOTTOM: 41,
+  ROAD_EDGE_LEFT: 33,
+  ROAD_EDGE_RIGHT: 35,
+} as const;
+
+// ============================================
+// 타일 가중치 (기본 잔디 영역용)
 // ============================================
 export const TileWeights: Record<number, number> = {
-  // 기본 풀 타일 (가장 많이 사용)
-  1: 30, 2: 30, 3: 30, 4: 30, 5: 25, 6: 25, 7: 25, 8: 25,
-  // 풀 패치 타일
-  9: 8, 10: 8, 11: 8, 12: 8, 13: 8, 14: 8, 15: 8, 16: 8,
-  17: 5, 18: 5, 19: 5, 20: 5, 21: 5, 22: 5, 23: 5, 24: 5,
-  // 흙 경계 타일 (적게 사용)
-  25: 2, 26: 2, 27: 2, 28: 2, 29: 2, 30: 2, 31: 2, 32: 2,
-  33: 2, 34: 2, 35: 2, 36: 2, 37: 2, 38: 2, 39: 2, 40: 2,
-  // 나머지
-  41: 1, 42: 1, 43: 1, 44: 1, 45: 1, 46: 1, 47: 1, 48: 1,
-  49: 1, 50: 1, 51: 1, 52: 1, 53: 1, 54: 1, 55: 1, 56: 1,
-  57: 1, 58: 1, 59: 1, 60: 1, 61: 1, 62: 1, 63: 1, 64: 1,
+  // 순수 잔디 타일 (38번) - 100%
+  38: 100,
 };
 
 // ============================================
@@ -119,12 +153,13 @@ export const TileWeights: Record<number, number> = {
 // ============================================
 export const ObjectPlacement = {
   // 나무: 맵 가장자리와 랜덤 위치에 배치 (충돌 있음)
+  // 엘더우드 - 숲이 울창한 느낌
   tree: {
-    density: 0.02, // 타일당 배치 확률
+    density: 0.06, // 타일당 배치 확률 (3배 증가)
     collision: true,
     collisionRadius: 20,
-    minDistance: 150, // 나무 간 최소 거리
-    edgeBias: 0.6, // 가장자리에 더 많이 배치
+    minDistance: 100, // 나무 간 최소 거리 (줄임)
+    edgeBias: 0.4, // 전체적으로 분포
     depth: 'y', // y좌표 기준 깊이
     estimatedSize: { width: 64, height: 80 },
   },
@@ -150,22 +185,32 @@ export const ObjectPlacement = {
     estimatedSize: { width: 32, height: 32 },
   },
   
-  // 풀: 밀집 장식 (충돌 없음)
+  // 풀: 밀집 장식 (충돌 없음) - 마법의 숲 느낌을 위해 밀도 증가
   grass: {
-    density: 0.08,
+    density: 0.15,
     collision: false,
-    minDistance: 20,
-    edgeBias: 0.2,
+    minDistance: 15,
+    edgeBias: 0.1,
     depth: 0, // 바닥 레이어
     estimatedSize: { width: 16, height: 16 },
   },
-  
-  // 꽃: 장식용 (충돌 없음)
-  flower: {
-    density: 0.04,
+
+  // river_tileset 풀: 추가 장식 (충돌 없음)
+  riverGrass: {
+    density: 0.12,
     collision: false,
-    minDistance: 30,
-    edgeBias: 0.2,
+    minDistance: 18,
+    edgeBias: 0.1,
+    depth: 0,
+    estimatedSize: { width: 16, height: 16 },
+  },
+
+  // 꽃: 장식용 (충돌 없음) - 밀도 증가
+  flower: {
+    density: 0.06,
+    collision: false,
+    minDistance: 25,
+    edgeBias: 0.15,
     depth: 0,
     estimatedSize: { width: 16, height: 16 },
   },
@@ -204,15 +249,15 @@ export const ObjectPlacement = {
 export function getWeightedRandomTile(seed?: number): number {
   const weights = Object.entries(TileWeights);
   const totalWeight = weights.reduce((sum, [, w]) => sum + w, 0);
-  
+
   let random = (seed !== undefined ? seededRandom(seed) : Math.random()) * totalWeight;
-  
+
   for (const [tile, weight] of weights) {
     random -= weight;
     if (random <= 0) return parseInt(tile);
   }
-  
-  return 1;
+
+  return TileId.GRASS;
 }
 
 /**
@@ -224,22 +269,149 @@ function seededRandom(seed: number): number {
 }
 
 /**
+ * 도로 경로 생성 (연결된 길)
+ * 맵 중앙에서 사방으로 뻗어나가는 도로
+ */
+function generateRoadPaths(seed: number, tilesX: number, tilesY: number): Set<string> {
+  const roadTiles = new Set<string>();
+  const centerX = Math.floor(tilesX / 2);
+  const centerY = Math.floor(tilesY / 2);
+
+  // 중앙에서 시작하는 4개의 주요 도로
+  const directions = [
+    { dx: 1, dy: 0 },   // 동
+    { dx: -1, dy: 0 },  // 서
+    { dx: 0, dy: 1 },   // 남
+    { dx: 0, dy: -1 },  // 북
+  ];
+
+  // 각 방향으로 구불구불한 도로 생성
+  for (let i = 0; i < directions.length; i++) {
+    const dir = directions[i];
+    let x = centerX;
+    let y = centerY;
+    let pathSeed = seed + i * 1000;
+
+    // 도로 길이 (40-60 타일)
+    const length = 40 + Math.floor(seededRandom(pathSeed) * 20);
+
+    for (let step = 0; step < length; step++) {
+      // 현재 위치에 도로 타일 추가 (3타일 폭)
+      for (let w = -1; w <= 1; w++) {
+        const roadX = x + (dir.dy !== 0 ? w : 0);
+        const roadY = y + (dir.dx !== 0 ? w : 0);
+        if (roadX >= 0 && roadX < tilesX && roadY >= 0 && roadY < tilesY) {
+          roadTiles.add(`${roadX},${roadY}`);
+        }
+      }
+
+      // 다음 위치로 이동 (약간의 구불거림)
+      x += dir.dx;
+      y += dir.dy;
+
+      // 가끔 옆으로 휘어짐 (20% 확률)
+      if (seededRandom(pathSeed + step) < 0.2) {
+        if (dir.dx !== 0) {
+          y += seededRandom(pathSeed + step + 0.5) > 0.5 ? 1 : -1;
+        } else {
+          x += seededRandom(pathSeed + step + 0.5) > 0.5 ? 1 : -1;
+        }
+      }
+
+      // 경계 체크
+      x = Math.max(3, Math.min(tilesX - 4, x));
+      y = Math.max(3, Math.min(tilesY - 4, y));
+    }
+  }
+
+  // 분기 도로 추가 (주요 도로에서 갈라지는 작은 길)
+  const roadArray = Array.from(roadTiles);
+  for (let i = 0; i < 8; i++) {
+    const branchSeed = seed + 5000 + i * 500;
+    const startIdx = Math.floor(seededRandom(branchSeed) * roadArray.length);
+    const [startX, startY] = roadArray[startIdx].split(',').map(Number);
+
+    // 랜덤 방향
+    const angle = seededRandom(branchSeed + 1) * Math.PI * 2;
+    let bx = startX;
+    let by = startY;
+    const branchLength = 15 + Math.floor(seededRandom(branchSeed + 2) * 15);
+
+    for (let step = 0; step < branchLength; step++) {
+      // 2타일 폭
+      for (let w = 0; w <= 1; w++) {
+        const roadX = bx + (Math.abs(Math.cos(angle)) > 0.5 ? 0 : w);
+        const roadY = by + (Math.abs(Math.sin(angle)) > 0.5 ? 0 : w);
+        if (roadX >= 0 && roadX < tilesX && roadY >= 0 && roadY < tilesY) {
+          roadTiles.add(`${roadX},${roadY}`);
+        }
+      }
+
+      bx += Math.round(Math.cos(angle));
+      by += Math.round(Math.sin(angle));
+
+      // 경계 체크
+      if (bx < 2 || bx >= tilesX - 2 || by < 2 || by >= tilesY - 2) break;
+    }
+  }
+
+  return roadTiles;
+}
+
+/**
+ * 도로 타일에 적절한 타일 ID 결정 (주변 타일 기반)
+ */
+function getRoadTileId(x: number, y: number, roadTiles: Set<string>): number {
+  const hasTop = roadTiles.has(`${x},${y - 1}`);
+  const hasBottom = roadTiles.has(`${x},${y + 1}`);
+  const hasLeft = roadTiles.has(`${x - 1},${y}`);
+  const hasRight = roadTiles.has(`${x + 1},${y}`);
+
+  // 연결 수에 따라 타일 결정
+  const connections = [hasTop, hasBottom, hasLeft, hasRight].filter(Boolean).length;
+
+  if (connections === 4) return TileId.ROAD_CROSS;
+  if (connections === 3) {
+    if (!hasTop) return TileId.ROAD_T_DOWN;
+    if (!hasBottom) return TileId.ROAD_T_UP;
+    if (!hasLeft) return TileId.ROAD_T_RIGHT;
+    return TileId.ROAD_T_LEFT;
+  }
+  if (connections === 2) {
+    if (hasTop && hasBottom) return TileId.ROAD_V;
+    if (hasLeft && hasRight) return TileId.ROAD_H;
+    if (hasTop && hasRight) return TileId.ROAD_CORNER_BL;
+    if (hasTop && hasLeft) return TileId.ROAD_CORNER_BR;
+    if (hasBottom && hasRight) return TileId.ROAD_CORNER_TL;
+    if (hasBottom && hasLeft) return TileId.ROAD_CORNER_TR;
+  }
+  if (connections === 1) {
+    if (hasTop || hasBottom) return TileId.ROAD_V;
+    return TileId.ROAD_H;
+  }
+
+  return TileId.ROAD_CENTER;
+}
+
+/**
  * 바닥 타일맵 생성
  * 2D 배열 반환 (Phaser Tilemap 호환)
+ * 전부 잔디로 구성
  */
 export function generateGroundTilemap(seed = 12345): number[][] {
   const { tilesX, tilesY } = MapConfig;
   const tilemap: number[][] = [];
-  
+
   for (let y = 0; y < tilesY; y++) {
     const row: number[] = [];
     for (let x = 0; x < tilesX; x++) {
+      // 전부 잔디 타일
       const tileSeed = seed + y * tilesX + x;
       row.push(getWeightedRandomTile(tileSeed));
     }
     tilemap.push(row);
   }
-  
+
   return tilemap;
 }
 
@@ -270,7 +442,7 @@ export function generateMapObjects(seed = 12345): MapObject[] {
   
   // 각 오브젝트 타입별 배치
   const objectTypes = [
-    'tree', 'stone', 'bush', 'grass', 'flower', 'log'
+    'tree', 'stone', 'bush', 'grass', 'riverGrass', 'flower', 'log'
   ] as const;
 
   for (const type of objectTypes) {
@@ -353,6 +525,165 @@ export function generateMapObjects(seed = 12345): MapObject[] {
   return objects;
 }
 
+// 연못 타일 ID (river_tileset 기준)
+// 8x8 그리드에서 잔디-물 경계 타일
+const PondTileId = {
+  // 외곽 코너 (잔디→물, 바깥쪽 둥근 코너)
+  CORNER_TL: 1,   // 좌상단 외곽 코너
+  CORNER_TR: 3,   // 우상단 외곽 코너
+  CORNER_BL: 17,  // 좌하단 외곽 코너
+  CORNER_BR: 19,  // 우하단 외곽 코너
+  // 가장자리
+  EDGE_TOP: 2,    // 상단 가장자리
+  EDGE_BOTTOM: 18, // 하단 가장자리
+  EDGE_LEFT: 9,   // 좌측 가장자리
+  EDGE_RIGHT: 11, // 우측 가장자리
+  // 내부 코너 (물→잔디, 안쪽 둥근 코너)
+  INNER_TL: 4,    // 좌상단 내부 코너
+  INNER_TR: 5,    // 우상단 내부 코너
+  INNER_BL: 12,   // 좌하단 내부 코너
+  INNER_BR: 13,   // 우하단 내부 코너
+  // 중앙 물 타일들 (변형)
+  WATER_1: 10,    // 기본 물
+  WATER_2: 33,    // 물 변형 1
+  WATER_3: 34,    // 물 변형 2
+  WATER_4: 41,    // 물 변형 3
+  WATER_5: 42,    // 물 변형 4
+} as const;
+
+/**
+ * 연못 생성 (2개, 자연스러운 불규칙 형태)
+ * river_tileset의 물 타일 사용
+ */
+export function generatePonds(seed = 12345): PondData[] {
+  const ponds: PondData[] = [];
+  const { spawnX, spawnY, safeZoneRadius } = MapConfig;
+
+  // 연못 위치 (맵의 대각선 위치에 배치)
+  const pondPositions = [
+    { x: 600, y: 600 },    // 좌상단
+    { x: 2600, y: 2600 },  // 우하단
+  ];
+
+  for (let i = 0; i < pondPositions.length; i++) {
+    const pos = pondPositions[i];
+
+    // 안전 구역 체크
+    const dx = pos.x - spawnX;
+    const dy = pos.y - spawnY;
+    if (Math.sqrt(dx * dx + dy * dy) < safeZoneRadius + 100) continue;
+
+    const pondSeed = seed + i * 1000;
+
+    // 불규칙한 연못 형태 생성 (노이즈 기반)
+    const baseWidth = 6 + Math.floor(seededRandom(pondSeed) * 3);  // 6-8
+    const baseHeight = 5 + Math.floor(seededRandom(pondSeed + 1) * 3); // 5-7
+
+    // 연못 마스크 생성 (어느 타일이 물인지)
+    const pondMask: boolean[][] = [];
+    for (let py = 0; py < baseHeight + 2; py++) {
+      pondMask[py] = [];
+      for (let px = 0; px < baseWidth + 2; px++) {
+        // 기본 타원형 + 노이즈로 불규칙하게
+        const centerX = (baseWidth + 2) / 2;
+        const centerY = (baseHeight + 2) / 2;
+        const normalX = (px - centerX) / (baseWidth / 2);
+        const normalY = (py - centerY) / (baseHeight / 2);
+        const dist = normalX * normalX + normalY * normalY;
+
+        // 노이즈 추가
+        const noise = seededRandom(pondSeed + py * 100 + px) * 0.4 - 0.2;
+
+        pondMask[py][px] = dist + noise < 1.0;
+      }
+    }
+
+    const tiles: { x: number; y: number; tileId: number }[] = [];
+
+    // 타일 배치
+    for (let py = 0; py < baseHeight + 2; py++) {
+      for (let px = 0; px < baseWidth + 2; px++) {
+        if (!pondMask[py][px]) continue;
+
+        const tileX = pos.x + px * 32;
+        const tileY = pos.y + py * 32;
+
+        // 주변 타일 체크
+        const hasTop = py > 0 && pondMask[py - 1]?.[px];
+        const hasBottom = py < baseHeight + 1 && pondMask[py + 1]?.[px];
+        const hasLeft = px > 0 && pondMask[py]?.[px - 1];
+        const hasRight = px < baseWidth + 1 && pondMask[py]?.[px + 1];
+        const hasTL = py > 0 && px > 0 && pondMask[py - 1]?.[px - 1];
+        const hasTR = py > 0 && px < baseWidth + 1 && pondMask[py - 1]?.[px + 1];
+        const hasBL = py < baseHeight + 1 && px > 0 && pondMask[py + 1]?.[px - 1];
+        const hasBR = py < baseHeight + 1 && px < baseWidth + 1 && pondMask[py + 1]?.[px + 1];
+
+        let tileId: number = PondTileId.WATER_1;
+
+        // 외곽 코너
+        if (!hasTop && !hasLeft && hasBottom && hasRight) {
+          tileId = PondTileId.CORNER_TL;
+        } else if (!hasTop && !hasRight && hasBottom && hasLeft) {
+          tileId = PondTileId.CORNER_TR;
+        } else if (!hasBottom && !hasLeft && hasTop && hasRight) {
+          tileId = PondTileId.CORNER_BL;
+        } else if (!hasBottom && !hasRight && hasTop && hasLeft) {
+          tileId = PondTileId.CORNER_BR;
+        }
+        // 가장자리
+        else if (!hasTop && hasBottom) {
+          tileId = PondTileId.EDGE_TOP;
+        } else if (!hasBottom && hasTop) {
+          tileId = PondTileId.EDGE_BOTTOM;
+        } else if (!hasLeft && hasRight) {
+          tileId = PondTileId.EDGE_LEFT;
+        } else if (!hasRight && hasLeft) {
+          tileId = PondTileId.EDGE_RIGHT;
+        }
+        // 내부 코너 (대각선 체크)
+        else if (hasTop && hasLeft && hasBottom && hasRight) {
+          if (!hasTL) tileId = PondTileId.INNER_TL;
+          else if (!hasTR) tileId = PondTileId.INNER_TR;
+          else if (!hasBL) tileId = PondTileId.INNER_BL;
+          else if (!hasBR) tileId = PondTileId.INNER_BR;
+          else {
+            // 중앙 물 - 랜덤 변형
+            const waterVariants = [
+              PondTileId.WATER_1, PondTileId.WATER_1, PondTileId.WATER_1,
+              PondTileId.WATER_2, PondTileId.WATER_3,
+              PondTileId.WATER_4, PondTileId.WATER_5,
+            ];
+            const variantIdx = Math.floor(seededRandom(pondSeed + py * 50 + px) * waterVariants.length);
+            tileId = waterVariants[variantIdx];
+          }
+        }
+
+        tiles.push({ x: tileX, y: tileY, tileId });
+      }
+    }
+
+    // 실제 연못 크기 계산
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const tile of tiles) {
+      minX = Math.min(minX, tile.x);
+      maxX = Math.max(maxX, tile.x);
+      minY = Math.min(minY, tile.y);
+      maxY = Math.max(maxY, tile.y);
+    }
+
+    ponds.push({
+      id: `pond_${i}`,
+      x: minX,
+      y: minY,
+      width: Math.ceil((maxX - minX) / 32) + 1,
+      height: Math.ceil((maxY - minY) / 32) + 1,
+      tiles,
+    });
+  }
+
+  return ponds;
+}
+
 // ============================================
 // Phaser 4 호환 맵 데이터 구조
 // ============================================
@@ -360,6 +691,7 @@ export interface VampireSurvivorsMapData {
   config: typeof MapConfig;
   groundTilemap: number[][];
   objects: MapObject[];
+  ponds: PondData[];
   assetPaths: typeof AssetPaths;
 }
 
@@ -371,6 +703,7 @@ export function createMapData(seed = 12345): VampireSurvivorsMapData {
     config: MapConfig,
     groundTilemap: generateGroundTilemap(seed),
     objects: generateMapObjects(seed),
+    ponds: generatePonds(seed),
     assetPaths: AssetPaths,
   };
 }
