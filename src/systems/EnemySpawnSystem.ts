@@ -20,6 +20,7 @@ interface SpawnWave {
   spawnRate: number;
   healthMultiplier: number;
   damageMultiplier: number;
+  endTime?: number; // 종료 시간 (없으면 계속 유지)
 }
 
 export class EnemySpawnSystem extends System {
@@ -29,71 +30,72 @@ export class EnemySpawnSystem extends System {
 
   private scene: Phaser.Scene | null = null;
   private gameTime = 0;
-  private spawnTimer = 0;
-  private currentWaveIndex = 0;
+  private spawnTimers: Map<number, number> = new Map(); // 각 웨이브별 스폰 타이머
   private maxEnemies = 200;
 
+  // 여러 웨이브가 동시에 활성화될 수 있음
   private readonly waves: SpawnWave[] = [
-    // 슬라임 - 초반 몬스터 (0초~)
+    // 슬라임 - 초반 몬스터 (0초~120초)
     {
       time: 0,
+      endTime: 120,
       enemyType: EnemyType.Slime,
       count: 5,
       spawnRate: 2,
       healthMultiplier: 1,
       damageMultiplier: 1,
     },
-    // 슬라임 강화 (30초~)
+    // 슬라임 강화 (120초~ 계속)
     {
-      time: 30,
+      time: 120,
       enemyType: EnemyType.Slime,
-      count: 8,
-      spawnRate: 1.5,
-      healthMultiplier: 1.3,
-      damageMultiplier: 1.1,
+      count: 6,
+      spawnRate: 2.5,
+      healthMultiplier: 1.5,
+      damageMultiplier: 1.2,
     },
-    // 고블린 등장 (60초~)
+    // 고블린 등장 (60초~ 계속)
     {
       time: 60,
       enemyType: EnemyType.Goblin,
-      count: 6,
-      spawnRate: 1.2,
-      healthMultiplier: 1,
-      damageMultiplier: 1,
-    },
-    // 코볼트 등장 (120초~)
-    {
-      time: 120,
-      enemyType: EnemyType.Kobold,
-      count: 8,
-      spawnRate: 1,
-      healthMultiplier: 1,
-      damageMultiplier: 1,
-    },
-    // 리자드맨 등장 (180초~)
-    {
-      time: 180,
-      enemyType: EnemyType.Lizardman,
-      count: 5,
-      spawnRate: 1.5,
-      healthMultiplier: 1,
-      damageMultiplier: 1,
-    },
-    // 오크 등장 (240초~)
-    {
-      time: 240,
-      enemyType: EnemyType.Orc,
       count: 4,
       spawnRate: 2,
       healthMultiplier: 1,
       damageMultiplier: 1,
     },
-    // 오우거 보스 등장 (300초~)
+    // 코볼트 등장 (120초~ 계속)
+    {
+      time: 120,
+      enemyType: EnemyType.Kobold,
+      count: 5,
+      spawnRate: 1.8,
+      healthMultiplier: 1,
+      damageMultiplier: 1,
+    },
+    // 리자드맨 등장 (180초~ 계속)
+    {
+      time: 180,
+      enemyType: EnemyType.Lizardman,
+      count: 3,
+      spawnRate: 2.5,
+      healthMultiplier: 1,
+      damageMultiplier: 1,
+    },
+    // 오크 등장 (240초~ 계속)
+    {
+      time: 240,
+      enemyType: EnemyType.Orc,
+      count: 2,
+      spawnRate: 3,
+      healthMultiplier: 1,
+      damageMultiplier: 1,
+    },
+    // 오우거 보스 등장 (300초~ 계속, 가끔씩)
     {
       time: 300,
       enemyType: EnemyType.Ogre,
       count: 1,
-      spawnRate: 30,
+      spawnRate: 45,
       healthMultiplier: 1,
       damageMultiplier: 1,
     },
@@ -105,32 +107,35 @@ export class EnemySpawnSystem extends System {
 
   update(dt: number): void {
     this.gameTime += dt;
-    this.spawnTimer += dt;
-    this.updateCurrentWave();
-
-    const currentWave = this.getCurrentWave();
-    if (!currentWave) return;
 
     const enemyCount = this.world.getEntitiesWithTag('enemy').length;
     if (enemyCount >= this.maxEnemies) return;
 
-    if (this.spawnTimer >= currentWave.spawnRate) {
-      this.spawnTimer = 0;
-      this.spawnEnemies(currentWave);
-    }
-  }
+    // 모든 활성 웨이브 처리
+    const activeWaves = this.getActiveWaves();
+    for (const [waveIndex, wave] of activeWaves) {
+      // 각 웨이브별 타이머 업데이트
+      const currentTimer = (this.spawnTimers.get(waveIndex) || 0) + dt;
 
-  private updateCurrentWave(): void {
-    for (let i = this.waves.length - 1; i >= 0; i--) {
-      if (this.gameTime >= this.waves[i].time) {
-        this.currentWaveIndex = i;
-        break;
+      if (currentTimer >= wave.spawnRate) {
+        this.spawnTimers.set(waveIndex, 0);
+        this.spawnEnemies(wave);
+      } else {
+        this.spawnTimers.set(waveIndex, currentTimer);
       }
     }
   }
 
-  private getCurrentWave(): SpawnWave | null {
-    return this.waves[this.currentWaveIndex] || null;
+  private getActiveWaves(): [number, SpawnWave][] {
+    const active: [number, SpawnWave][] = [];
+    for (let i = 0; i < this.waves.length; i++) {
+      const wave = this.waves[i];
+      // 시작 시간이 지났고, 종료 시간이 없거나 아직 안 지났으면 활성
+      if (this.gameTime >= wave.time && (wave.endTime === undefined || this.gameTime < wave.endTime)) {
+        active.push([i, wave]);
+      }
+    }
+    return active;
   }
 
   private spawnEnemies(wave: SpawnWave): void {
