@@ -8,11 +8,9 @@ import {
   PickupType,
   PlayerComponent,
   ProjectileComponent,
-  SlowComponent,
   FreezeComponent,
   SpriteComponent,
   TransformComponent,
-  VelocityComponent,
 } from '../components';
 import type { ComponentClass } from '../ecs/Component';
 import type { Entity } from '../ecs/Entity';

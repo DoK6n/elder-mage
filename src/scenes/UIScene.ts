@@ -7,7 +7,7 @@ import type { GameScene } from './GameScene';
 // 개발자 모드 설정 - 개발 환경에서만 활성화 (프로덕션에서는 절대 표시 안됨)
 const isDevelopmentMode = (): boolean => {
   // Vite 개발 환경에서만 활성화 (프로덕션 빌드에서는 항상 false)
-  return import.meta.env.DEV;
+  return !!import.meta.env.DEV;
 };
 
 // 스킬별 대표 텍스처 및 프레임 정보
@@ -949,20 +949,6 @@ export class UIScene extends Phaser.Scene {
 
     // 스킬 버튼 다시 생성
     this.createSkillButtons(10, 155, 260);
-  }
-
-  private updateSkillButtonStates(): void {
-    // 선택 상태에 따라 테두리 색상과 아이콘 투명도 업데이트
-    this.skillButtons.forEach((container, skillType) => {
-      const bg = container.getAt(0) as Phaser.GameObjects.Rectangle;
-      const icon = container.getAt(1) as Phaser.GameObjects.Sprite | Phaser.GameObjects.Image;
-      const isActive = this.selectedSkills.has(skillType);
-      
-      // 활성화: 초록색 테두리 + 불투명 아이콘
-      // 비활성화: 회색 테두리 + 반투명 아이콘
-      bg.setStrokeStyle(3, isActive ? 0x00ff00 : 0x666666);
-      icon.setAlpha(isActive ? 1 : 0.4);
-    });
   }
 
   private updateDevPanel(): void {

@@ -369,7 +369,6 @@ export class GameScene extends Phaser.Scene {
     this.enemySpawnSystem.setScene(this);
 
     this.pickupSystem = new PickupSystem();
-    this.pickupSystem.setScene(this);
 
     const healthPickupSpawnSystem = new HealthPickupSpawnSystem();
     healthPickupSpawnSystem.setScene(this);

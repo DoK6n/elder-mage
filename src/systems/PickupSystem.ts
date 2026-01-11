@@ -1,25 +1,16 @@
-import type Phaser from 'phaser';
 import {
-  HealthComponent,
   PickupComponent,
-  PickupType,
   PlayerComponent,
   SpriteComponent,
   TransformComponent,
-  VelocityComponent,
 } from '../components';
 import type { ComponentClass } from '../ecs/Component';
 import { System } from '../ecs/System';
 
 export class PickupSystem extends System {
   public priority = 35;
-  private scene: Phaser.Scene | null = null;
 
   protected readonly requiredComponents: ComponentClass[] = [TransformComponent, PickupComponent];
-
-  setScene(scene: Phaser.Scene): void {
-    this.scene = scene;
-  }
 
   update(dt: number): void {
     const pickups = this.getEntities();

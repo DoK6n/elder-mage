@@ -482,7 +482,6 @@ export class BootScene extends Phaser.Scene {
   private createFireWallProjectile(): void {
     const g = this.add.graphics();
     const size = 48;
-    const cx = size / 2;
 
     // Fire wall - vertical flames
     for (let i = 0; i < 5; i++) {

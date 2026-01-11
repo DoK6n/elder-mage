@@ -12,7 +12,6 @@ import {
   type WeaponSlot,
   WeaponType,
   ElementType,
-  getElementFromWeapon,
   getElementColor,
 } from '../components';
 import type { ComponentClass } from '../ecs/Component';
